@@ -11,6 +11,7 @@ import android.view.View
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
+import io.github.tengigabytes.mokyaime.MokyaImeService
 import io.github.tengigabytes.mokyaime.R
 import io.github.tengigabytes.mokyaime.input.StripPaging
 
@@ -50,12 +51,8 @@ class CandidateStripView(context: Context) : LinearLayout(context) {
         isHorizontalScrollBarEnabled = false
         addView(itemsRow, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
     }
-    private val previousPage = pageButton("‹", R.string.candidates_previous_page) {
-        pageTo(StripPaging.previous(starts(), itemsRow.width, scroller.scrollX, scroller.width))
-    }
-    private val nextPage = pageButton("›", R.string.candidates_next_page) {
-        pageTo(StripPaging.next(starts(), itemsRow.width, scroller.scrollX, scroller.width))
-    }
+    private val previousPage = pageButton("‹", R.string.candidates_previous_page) { page(forward = false) }
+    private val nextPage = pageButton("›", R.string.candidates_next_page) { page(forward = true) }
 
     private var shownItems: List<String> = emptyList()
     private var shownSelected = -1
@@ -83,6 +80,7 @@ class CandidateStripView(context: Context) : LinearLayout(context) {
             itemsRow.removeAllViews()
             state.items.forEachIndexed { index, text -> itemsRow.addView(itemView(index, text)) }
             scroller.scrollTo(0, 0)
+            MokyaImeService.trace { "strip shows ${state.items.size} items" }
         }
         if (state.selected != shownSelected) {
             (0 until itemsRow.childCount).forEach { i -> styleItem(itemsRow.getChildAt(i) as TextView, i == state.selected) }
@@ -102,7 +100,29 @@ class CandidateStripView(context: Context) : LinearLayout(context) {
 
     private fun starts(): List<Int> = (0 until itemsRow.childCount).map { itemsRow.getChildAt(it).left }
 
-    private fun pageTo(x: Int) {
+    private fun page(forward: Boolean) {
+        if (itemsRow.isLayoutRequested) {
+            // A new list has no positions yet: page once it is laid out.
+            MokyaImeService.trace { "strip page forward=$forward waits for layout" }
+            itemsRow.addOnLayoutChangeListener(object : OnLayoutChangeListener {
+                override fun onLayoutChange(
+                    v: View, l: Int, t: Int, r: Int, b: Int, oldL: Int, oldT: Int, oldR: Int, oldB: Int,
+                ) {
+                    v.removeOnLayoutChangeListener(this)
+                    page(forward)
+                }
+            })
+            return
+        }
+        val starts = starts()
+        val x = if (forward) {
+            StripPaging.next(starts, itemsRow.width, scroller.scrollX, scroller.width)
+        } else {
+            StripPaging.previous(starts, itemsRow.width, scroller.scrollX, scroller.width)
+        }
+        MokyaImeService.trace {
+            "strip page forward=$forward from=${scroller.scrollX} to=$x viewport=${scroller.width} row=${itemsRow.width} items=${starts.size}"
+        }
         scroller.smoothScrollTo(x, 0)
     }
 
@@ -146,6 +166,9 @@ class CandidateStripView(context: Context) : LinearLayout(context) {
     internal val scrollXForTest: Int get() = scroller.scrollX
 
     internal val canPageForwardForTest: Boolean get() = nextPage.isEnabled
+
+    /** The candidate row is laid out (a new list gets positions on the next layout pass). */
+    internal val settledForTest: Boolean get() = !itemsRow.isLayoutRequested && itemsRow.width > 0
 
     /** Screen position of the ‹ (false) or › (true) button's centre. */
     internal fun pageButtonCenterOnScreen(forward: Boolean): PointF = centerOnScreen(if (forward) nextPage else previousPage)
