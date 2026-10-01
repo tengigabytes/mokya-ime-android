@@ -4,6 +4,7 @@ package io.github.tengigabytes.mokyaime.ui
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.PointF
 import android.graphics.RectF
 import android.os.Handler
 import android.os.Looper
@@ -165,6 +166,15 @@ class KeyboardView @JvmOverloads constructor(
     override fun onDetachedFromWindow() {
         cancelTouches()
         super.onDetachedFromWindow()
+    }
+
+    /** Screen position of [keycode]'s centre, or null while not laid out and shown (tests). */
+    internal fun keyCenterOnScreen(keycode: Int): PointF? {
+        if (!isShown || width == 0) return null
+        val key = keys.firstOrNull { it.keycode == keycode } ?: return null
+        val origin = IntArray(2)
+        getLocationOnScreen(origin)
+        return PointF(origin[0] + key.bounds.centerX(), origin[1] + key.bounds.centerY())
     }
 
     private fun keyAt(x: Float, y: Float): Key? =

@@ -58,8 +58,6 @@ jobs:
       - name: Build
         run: ./gradlew :app:assembleDebug --stacktrace
 
-      # The APK is not uploaded: it bundles the generated dictionary, whose
-      # third-party data notices are not packaged yet (see README).
       - name: Check APK contents
         run: |
           apk=app/build/outputs/apk/debug/app-debug.apk
@@ -70,3 +68,55 @@ jobs:
             unzip -l "$apk" "lib/$abi/libmokyaime_jni.so" > /dev/null \
               || { echo "::error::missing lib/$abi/libmokyaime_jni.so"; exit 1; }
           done
+          for f in NOTICE Apache-2.0.txt libmie-MIT.txt LGPL-2.1.txt CC-BY-SA-4.0.txt; do
+            unzip -l "$apk" "assets/licenses/$f" > /dev/null \
+              || { echo "::error::missing assets/licenses/$f"; exit 1; }
+          done
+
+  emulator-tests:
+    name: End-to-end tests (emulator, API 34)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: .mie-data
+          key: mie-data-${{ hashFiles('app/src/main/cpp/libmie/tools/fetch_data.py') }}
+
+      - name: Build app and test APKs
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
+
+      - name: Run instrumentation tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: default
+          disable-animations: true
+          disk-size: 6000M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: ./gradlew :app:connectedDebugAndroidTest --stacktrace
+
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-test-report
+          path: app/build/reports/androidTests/connected
