@@ -54,4 +54,12 @@ object MokyaKeys {
     // Flags for MieEngine.processKey(flags = ...).
     const val KEY_FLAG_LONG_PRESS = 0x01
     const val KEY_FLAG_HINT_ANY = 0x04
+    const val KEY_FLAG_PHONEME_MASK = 0x18
+
+    /**
+     * Explicit phoneme flag (`MOKYA_KEY_FLAG_PHONEME(idx)`): index 0..2 of
+     * the half-key's Bopomofo symbols, for producers that know exactly which
+     * one was typed (e.g. a Dachen hardware keyboard). SmartZh only.
+     */
+    fun keyFlagPhoneme(index: Int): Int = ((index + 1) shl 3) and KEY_FLAG_PHONEME_MASK
 }
