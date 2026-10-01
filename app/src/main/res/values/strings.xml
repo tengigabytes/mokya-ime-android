@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">Mokya IME</string>
+    <string name="ime_name" translatable="false">Mokya 注音</string>
+    <string name="subtype_zh_tw" translatable="false">注音半鍵盤 (MokyaInput Engine)</string>
+</resources>
