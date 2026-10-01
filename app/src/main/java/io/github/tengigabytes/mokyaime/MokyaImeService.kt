@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.graphics.PointF
 import android.graphics.Typeface
 import android.inputmethodservice.InputMethodService
+import android.inputmethodservice.InputMethodService.Insets
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -101,6 +102,7 @@ class MokyaImeService : InputMethodService(), MieListener {
     private var keyboardView: KeyboardView? = null
     private var candidateStrip: CandidateStripView? = null
     private var modeFlashUntil = 0L
+    private var candidatesShown: Boolean? = null
 
     /** Mode the user picked last in an editor without a required mode. */
     private var userMode = InputMode.SMART_ZH
@@ -188,6 +190,20 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     /** Never take over the screen in landscape; the strip shows the composition. */
     override fun onEvaluateFullscreenMode(): Boolean = false
+
+    private var lastInsetsTrace = ""
+
+    override fun onComputeInsets(outInsets: Insets) {
+        super.onComputeInsets(outInsets)
+        if (traceForTest != null) {   // test diagnostics: where the IME accepts touches
+            val now = "insets content=${outInsets.contentTopInsets} visible=${outInsets.visibleTopInsets} " +
+                "touchable=${outInsets.touchableInsets} region=${outInsets.touchableRegion.bounds}"
+            if (now != lastInsetsTrace) {
+                lastInsetsTrace = now
+                trace { now }
+            }
+        }
+    }
 
     override fun onStartInput(attribute: EditorInfo, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
@@ -627,9 +643,12 @@ class MokyaImeService : InputMethodService(), MieListener {
         candidateStrip?.show(CandidateStripView.State(e.mode.indicator, items, selected, picker))
         val composing = e.hasPending || items.isNotEmpty()
         keyboardView?.composing = composing
-        setCandidatesViewShown(
-            isInputViewShown || composing || SystemClock.uptimeMillis() < modeFlashUntil,
-        )
+        val showCandidates = isInputViewShown || composing || SystemClock.uptimeMillis() < modeFlashUntil
+        if (showCandidates != candidatesShown) {
+            candidatesShown = showCandidates
+            trace { "candidates view shown=$showCandidates" }
+        }
+        setCandidatesViewShown(showCandidates)
     }
 
     private fun resetTracking(selStart: Int, selEnd: Int) {

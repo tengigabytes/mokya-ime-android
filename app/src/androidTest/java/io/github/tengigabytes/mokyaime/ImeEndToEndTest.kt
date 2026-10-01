@@ -187,6 +187,7 @@ class ImeEndToEndTest {
         val strip = { MokyaImeService.current!!.candidateStripForTest!! }
         waitFor("more candidates than fit") { onMain { strip().settledForTest && strip().canPageForwardForTest } }
 
+        onMain { MokyaImeService.trace { "test: " + strip().geometryForTest() } }
         tapAt(onMain { strip().pageButtonCenterOnScreen(forward = true) })
         var lastX = -1
         waitFor("strip paged") {
