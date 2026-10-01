@@ -7,6 +7,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
@@ -161,7 +162,21 @@ class CandidateStripView(context: Context) : LinearLayout(context) {
         }
     }
 
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        MokyaImeService.trace { "strip touch action=${ev.actionMasked} (${ev.x}, ${ev.y})" }
+        return super.dispatchTouchEvent(ev)
+    }
+
     // ── Test hooks (instrumentation tests run in this process) ───────────
+
+    /** Where the strip and its › button are, for the trace of a failing test. */
+    internal fun geometryForTest(): String {
+        val strip = IntArray(2).also(::getLocationOnScreen)
+        val next = IntArray(2).also(nextPage::getLocationOnScreen)
+        return "strip at (${strip[0]}, ${strip[1]}) ${width}x$height shown=$isShown; " +
+            "› at (${next[0]}, ${next[1]}) ${nextPage.width}x${nextPage.height} " +
+            "visible=${nextPage.visibility == VISIBLE} enabled=${nextPage.isEnabled}"
+    }
 
     internal val scrollXForTest: Int get() = scroller.scrollX
 
