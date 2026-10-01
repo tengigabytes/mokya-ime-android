@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 cmake_minimum_required(VERSION 3.22.1)
 
 # JNI bridge for the Mokya IME. Built two ways from this one file:

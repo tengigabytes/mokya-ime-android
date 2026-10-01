@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package io.github.tengigabytes.mokyaime.engine
 
 /** Cursor / candidate navigation direction (mirrors `mie::NavDir`). */

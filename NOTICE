@@ -1,0 +1,47 @@
+Mokya IME for Android
+Copyright 2026 MokyaLora Contributors
+
+This product is licensed under the Apache License, Version 2.0 (LICENSE),
+like the UI/application firmware (Core 1) of MokyaLora.
+
+It includes the following third-party software, each under its own licence:
+
+* libmie, the MokyaInput Engine (app/src/main/cpp/libmie)
+  Copyright (c) 2024 MokyaLora Contributors
+  MIT License (app/src/main/cpp/libmie/LICENSE)
+
+* Kotlin Standard Library
+  Copyright JetBrains s.r.o. and Kotlin Programming Language contributors
+  Apache License, Version 2.0
+
+* LLVM libc++, linked statically by the Android NDK
+  Apache License, Version 2.0 with LLVM Exceptions
+
+DICTIONARY DATA (NOT COVERED BY THE APACHE LICENSE)
+
+The dictionary asset dict_mie_v4.bin in the APK is generated at build time
+from third-party data. It is distributed under the licences of that data,
+not under the Apache License:
+
+* Chinese sections: derived from libchewing-data, dict/chewing/tsi.csv at
+  commit ea74f76dd2548b1d65d0ff70c3ae66057a6ad97d
+  (https://github.com/chewing/libchewing-data).
+  Copyright (c) 2025 libchewing Core Team.
+  GNU Lesser General Public License, version 2.1 or (at your option) any
+  later version (licenses/lgpl-2.1.txt).
+
+* English sections: derived from FrequencyWords, content/2018/en/en_50k.txt
+  (https://github.com/hermitdave/FrequencyWords), by Hermit Dave, 2016.
+  Creative Commons Attribution-ShareAlike 4.0 International
+  (licenses/cc-by-sa-4.0.txt,
+  https://creativecommons.org/licenses/by-sa/4.0/).
+  The word list was produced from the OpenSubtitles 2018 corpus
+  (OPUS, https://opus.nlpl.eu/; P. Lison and J. Tiedemann, 2016;
+  www.opensubtitles.org).
+
+Changes made: libmie's tools/gen_dict.py converts both sources into the
+MIE4 v4 binary format. Chinese readings are re-encoded as half-keyboard key
+sequences with phoneme positions. English words longer than 30 bytes are
+dropped, at most 5 words are kept per key sequence, and frequencies are
+capped at 65535. The exact sources and the generator are referenced in README.md
+("Third-party data"), so the dictionary can be rebuilt or replaced.
