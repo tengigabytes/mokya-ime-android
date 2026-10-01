@@ -17,12 +17,20 @@ tapped, and the cursor is placed by touching the text. Each key carries two
 Bopomofo symbols (ㄞㄢㄦ has three):
 
 - Tap a key to match any of its symbols. Hold it (500 ms) to pin the first
-  symbol; hold again within 800 ms to cycle to the next.
+  symbol: the key vibrates and turns amber when it is pinned. Hold again
+  within 800 ms to cycle to the next.
 - **MODE** cycles 中 → EN → ABC. **，SYM** types ，; hold it for the symbol
   table. **。.？** cycles 。？！.
 - Tap a candidate in the strip to enter it. **‹ ›** at the ends of the strip
   page through the candidates (a swipe scrolls it too). **OK** enters the
   highlighted candidate, and **⇥** moves the highlight to the next page.
+- With nothing pending, OK turns blue and shows what it will do: the
+  field's action (Send, Search, Next…) or ↵ for a new line. While
+  composing it reads **OK** and only commits.
+- **ABC** shows QWERTY with a number row instead of multi-tap. **⇧** shifts
+  the next character (capitals, and the symbols ! @ # … on the number row);
+  tap it twice to lock. Number, phone, password, e-mail and URL fields
+  start in ABC.
 
 **Hardware keyboard.**
 

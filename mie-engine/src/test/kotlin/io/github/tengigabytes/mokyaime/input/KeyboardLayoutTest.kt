@@ -26,6 +26,30 @@ class KeyboardLayoutTest {
     }
 
     @Test
+    fun abcIsQwertyWithANumberRow() {
+        val rows = KeyboardLayout.touchRows(InputMode.DIRECT)
+        rows.forEach { row -> assertEquals(KeyboardLayout.ROW_UNITS, row.sumOf { it.weight.toDouble() }.toFloat()) }
+        val texts = rows.flatten().filterIsInstance<TouchKey.Text>()
+        assertEquals("1234567890", texts.take(10).joinToString("") { it.normal })
+        assertEquals("!@#$%^&*()", texts.take(10).joinToString("") { it.shifted })
+        val letters = texts.map { it.normal }.filter { it.length == 1 && it[0] in 'a'..'z' }
+        assertEquals(('a'..'z').map { "$it" }.sorted(), letters.sorted())
+        texts.filter { it.normal in letters }.forEach { assertEquals(it.normal.uppercase(), it.shifted) }
+        val engineKeys = rows.flatten().filterIsInstance<TouchKey.Engine>().map { it.keycode }.toSet()
+        assertEquals(setOf(MokyaKeys.KEY_DEL, MokyaKeys.KEY_OK, MokyaKeys.KEY_MODE), engineKeys)
+        assertEquals(1, rows.flatten().count { it is TouchKey.Shift })
+        assertTrue(texts.any { it.normal == " " })
+    }
+
+    @Test
+    fun smartModesKeepTheHalfKeyboard() {
+        for (mode in listOf(InputMode.SMART_ZH, InputMode.SMART_EN)) {
+            val keys = KeyboardLayout.touchRows(mode).map { row -> row.map { (it as TouchKey.Engine).keycode } }
+            assertEquals(KeyboardLayout.rows, keys)
+        }
+    }
+
+    @Test
     fun inputKeyLabelsFollowMode() {
         assertEquals(KeyboardLayout.Label("ㄆㄊ", "q w"), KeyboardLayout.label(MokyaKeys.KEY_Q, InputMode.SMART_ZH))
         assertEquals(KeyboardLayout.Label("q w", "ㄆㄊ"), KeyboardLayout.label(MokyaKeys.KEY_Q, InputMode.SMART_EN))

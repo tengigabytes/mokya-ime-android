@@ -5,6 +5,8 @@
     <color name="key_bg">#FFFFFFFF</color>
     <color name="key_bg_function">#FFCFD8DC</color>
     <color name="key_bg_pressed">#FF90A4AE</color>
+    <color name="key_bg_accent">#FFBBDEFB</color>
+    <color name="key_bg_long">#FFFFE082</color>
     <color name="key_text">#FF212121</color>
     <color name="key_hint_text">#FF607D8B</color>
     <color name="strip_bg">#FFF5F5F5</color>
