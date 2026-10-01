@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.PointF
 import android.graphics.RectF
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
@@ -13,6 +14,7 @@ import android.util.TypedValue
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowInsets
 import io.github.tengigabytes.mokyaime.MokyaImeService
 import io.github.tengigabytes.mokyaime.R
 import io.github.tengigabytes.mokyaime.engine.InputMode
@@ -90,6 +92,13 @@ class KeyboardView @JvmOverloads constructor(
     private val gap = 3 * density
     private val radius = 6 * density
 
+    /**
+     * Space below the keys for the navigation bar / gesture handle. From
+     * Android 15 the IME window is edge to edge and the system bar overlaps
+     * its bottom; earlier, the window already insets its content (0 here).
+     */
+    private var bottomInset = 0
+
     private val keyPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val mainPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
@@ -149,9 +158,25 @@ class KeyboardView @JvmOverloads constructor(
         invalidate()
     }
 
+    override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
+        val bottom = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // The IME's own navigation bar (back / IME switcher) is a caption bar.
+            insets.getInsets(WindowInsets.Type.navigationBars() or WindowInsets.Type.captionBar()).bottom
+        } else {
+            @Suppress("DEPRECATION")
+            insets.systemWindowInsetBottom
+        }
+        if (bottom != bottomInset) {
+            MokyaImeService.trace { "keyboard bottom inset $bottomInset -> $bottom" }
+            bottomInset = bottom
+            requestLayout()
+        }
+        return insets
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         // The same height for every layout, so switching modes does not resize the window.
-        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), (keyboardHeight + gap).toInt())
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), (keyboardHeight + gap).toInt() + bottomInset)
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -312,5 +337,5 @@ class KeyboardView @JvmOverloads constructor(
     private fun keyAt(x: Float, y: Float): Key? =
         keys.firstOrNull { it.bounds.contains(x, y) }
             ?: keys.minByOrNull { val dx = it.bounds.centerX() - x; val dy = it.bounds.centerY() - y; dx * dx + dy * dy }
-                ?.takeIf { y >= 0 && y <= height }
+                ?.takeIf { y >= 0 && y <= height - bottomInset }
 }
