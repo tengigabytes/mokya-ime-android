@@ -201,6 +201,10 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     override fun onComputeInsets(outInsets: Insets) {
         super.onComputeInsets(outInsets)
+        // With the keyboard up the strip is always shown: let the app's content
+        // end above it, so it never covers the field being typed into. (The
+        // strip alone, for a hardware keyboard, still floats over the app.)
+        if (isInputViewShown) outInsets.contentTopInsets = outInsets.visibleTopInsets
         if (traceForTest != null) {   // test diagnostics: where the IME accepts touches
             val now = "insets content=${outInsets.contentTopInsets} visible=${outInsets.visibleTopInsets} " +
                 "touchable=${outInsets.touchableInsets} region=${outInsets.touchableRegion.bounds}"
@@ -655,6 +659,23 @@ class MokyaImeService : InputMethodService(), MieListener {
             trace { "candidates view shown=$showCandidates" }
         }
         setCandidatesViewShown(showCandidates)
+        if (showCandidates) revealCandidatesArea()
+    }
+
+    /**
+     * The platform (InputMethodService in the API 36 and 37 sources) sets the
+     * visibility of the candidates frame's parent only when fullscreen mode
+     * is re-evaluated, copying the frame's visibility at that moment. The
+     * window is first shown before the strip is, so the parent stays
+     * INVISIBLE and a strip shown later never appears. Show the parent too;
+     * this IME is never fullscreen, where the parent holds the extract view.
+     */
+    private fun revealCandidatesArea() {
+        val area = candidateStrip?.parent?.parent as? View ?: return
+        if (area.visibility != View.VISIBLE) {
+            trace { "candidates area was ${area.visibility}, made visible" }
+            area.visibility = View.VISIBLE
+        }
     }
 
     private fun resetTracking(selStart: Int, selEnd: Int) {
