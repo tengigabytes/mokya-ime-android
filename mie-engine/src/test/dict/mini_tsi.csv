@@ -1,0 +1,7 @@
+# Hand-written fixture for the host tests (tsi.csv format: word,freq,reading).
+# Not derived from libchewing-data; frequencies are arbitrary.
+你好,900,ㄋㄧˇ ㄏㄠˇ
+你們,800,ㄋㄧˇ ㄇㄣ˙
+好人,700,ㄏㄠˇ ㄖㄣˊ
+人,500,ㄖㄣˊ
+𠊎,10,ㄘㄨㄥ
