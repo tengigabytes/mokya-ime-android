@@ -1,61 +1,102 @@
 // SPDX-License-Identifier: Apache-2.0
 package io.github.tengigabytes.mokyaime
 
+import android.content.SharedPreferences
 import android.graphics.Typeface
 import android.inputmethodservice.InputMethodService
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.text.InputType
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.StyleSpan
 import android.util.Log
+import android.view.KeyCharacterMap
 import android.view.KeyEvent
+import android.view.View
 import android.view.inputmethod.EditorInfo
+import io.github.tengigabytes.mokyaime.engine.InputMode
 import io.github.tengigabytes.mokyaime.engine.MieEngine
 import io.github.tengigabytes.mokyaime.engine.MieListener
+import io.github.tengigabytes.mokyaime.engine.MokyaKeys
 import io.github.tengigabytes.mokyaime.engine.NavDirection
 import io.github.tengigabytes.mokyaime.engine.PendingStyle
 import io.github.tengigabytes.mokyaime.engine.PendingView
+import io.github.tengigabytes.mokyaime.input.CandidateNavigation
+import io.github.tengigabytes.mokyaime.input.EditorPolicy
+import io.github.tengigabytes.mokyaime.input.EngineState
+import io.github.tengigabytes.mokyaime.input.HardwareAction
+import io.github.tengigabytes.mokyaime.input.HardwareKey
+import io.github.tengigabytes.mokyaime.input.HardwareKeyMapper
+import io.github.tengigabytes.mokyaime.input.SpecialKey
+import io.github.tengigabytes.mokyaime.ui.CandidateStripView
+import io.github.tengigabytes.mokyaime.ui.KeyboardView
 import java.io.File
 import java.io.IOException
 
 /**
  * Input method service hosting the MokyaInput Engine.
  *
- * This is the engine plumbing only: there is no keyboard UI and no hardware
- * key mapping yet. A front end feeds MIE keys through [dispatchKey]; engine
- * events are mapped onto the editor's InputConnection:
+ * Input comes from the on-screen half-keyboard ([KeyboardView]) and from
+ * hardware keyboards ([HardwareKeyMapper]); both end up in [dispatchKey].
+ * Engine events are mapped onto the editor's InputConnection:
  *
- * | Engine                     | Editor                                        |
- * |----------------------------|-----------------------------------------------|
- * | on_commit                  | commitText (idle OK `"\n"` → sendKeyChar)     |
- * | pending_view               | setComposingText (matched prefix in bold)     |
- * | on_delete_before           | deleteSurroundingText(1, 0) (2 for a surrogate pair) |
- * | on_cursor_move             | sendDownUpKeyEvents(KEYCODE_DPAD_*)           |
- * | set_text_context           | getTextBeforeCursor(2, 0) in onUpdateSelection|
- * | abort                      | onFinishInput, or the cursor moved externally |
+ * | Engine           | Editor                                                  |
+ * |------------------|---------------------------------------------------------|
+ * | on_commit        | commitText (idle OK `"\n"` → sendKeyChar)               |
+ * | pending_view     | setComposingText (matched prefix in bold)               |
+ * | on_delete_before | deleteSurroundingText(1, 0) (2 for a surrogate pair)    |
+ * | on_cursor_move   | sendDownUpKeyEvents(KEYCODE_DPAD_*)                     |
+ * | set_text_context | getTextBeforeCursor(2, 0) in onUpdateSelection          |
+ * | abort            | onFinishInput, or the cursor moved externally           |
  *
- * Everything runs on the main thread: InputMethodService callbacks, the tick
- * Handler and every engine call. The engine's time base is
- * SystemClock.uptimeMillis(), the same base as KeyEvent.getEventTime().
+ * Everything runs on the main thread. Engine callbacks never call back into
+ * the engine: on_composition_changed only marks the composition dirty, and
+ * the composing text and UI are synced after the engine call returns
+ * ([runEngine]). The engine's time base is SystemClock.uptimeMillis(), the
+ * same base as KeyEvent.getEventTime().
  */
 class MokyaImeService : InputMethodService(), MieListener {
 
-    private companion object {
-        const val TAG = "MokyaIme"
-        const val TICK_INTERVAL_MS = 20L
-        const val LRU_FILE_NAME = "mie_lru.bin"
-        const val MAX_EXPECTED_REPORTS = 32
-        val NOTHING_SHOWN = PendingView("", 0, PendingStyle.NONE)
+    internal companion object {
+        private const val TAG = "MokyaIme"
+        private const val TICK_INTERVAL_MS = 20L
+        private const val MODE_FLASH_MS = 1500L
+        private const val LRU_FILE_NAME = "mie_lru.bin"
+        private const val PREFS_NAME = "mokya_ime"
+        private const val PREF_MODE = "mode"
+        private const val MAX_EXPECTED_REPORTS = 32
+        private val NOTHING_SHOWN = PendingView("", 0, PendingStyle.NONE)
+
+        /** The running service, for instrumentation tests (same process). */
+        @Volatile
+        internal var current: MokyaImeService? = null
+            private set
     }
 
     private var engine: MieEngine? = null
     private lateinit var lruStore: LruStore
+    private lateinit var prefs: SharedPreferences
 
     private val handler = Handler(Looper.getMainLooper())
     private val tickRunnable = Runnable { onTick() }
+    private val refreshRunnable = Runnable { refreshUi() }
     private var tickScheduled = false
+
+    private var keyboardView: KeyboardView? = null
+    private var candidateStrip: CandidateStripView? = null
+    private var modeFlashUntil = 0L
+
+    /** Mode the user picked last in an editor without a required mode. */
+    private var userMode = InputMode.SMART_ZH
+    private var editorForcesMode = false
+
+    /** LRU state to restore at the end of an editor that must not be learned from. */
+    private var lruSnapshot: ByteArray? = null
+
+    /** Hardware key-downs we handled; their key-ups are swallowed too. */
+    private val consumedKeyDowns = HashSet<Int>()
 
     // ── Editor-state tracking ────────────────────────────────────────────
     //
@@ -76,11 +117,17 @@ class MokyaImeService : InputMethodService(), MieListener {
     /** Set while aborting for an external edit: engine callbacks must not edit. */
     private var detached = false
 
+    /** The engine reported a composition change during the current call. */
+    private var compositionDirty = false
+
     // ── Lifecycle ────────────────────────────────────────────────────────
 
     override fun onCreate() {
         super.onCreate()
+        current = this
         lruStore = LruStore(File(filesDir, LRU_FILE_NAME))
+        prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+        userMode = InputMode.entries.getOrElse(prefs.getInt(PREF_MODE, 0)) { InputMode.SMART_ZH }
         engine = try {
             MieEngine.create(DictionaryAsset.map(assets), this)
         } catch (e: IOException) {
@@ -99,57 +146,228 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     override fun onDestroy() {
         stopTick()
+        handler.removeCallbacks(refreshRunnable)
         saveLru()
         engine?.close()
         engine = null
+        if (current === this) current = null
         super.onDestroy()
     }
+
+    override fun onCreateInputView(): View =
+        KeyboardView(this).also { view ->
+            view.onKey = { keycode, pressed, flags -> dispatchKey(keycode, pressed, flags) }
+            engine?.let { view.mode = it.mode }
+            keyboardView = view
+        }
+
+    override fun onCreateCandidatesView(): View =
+        CandidateStripView(this).also { strip ->
+            strip.onItemTapped = ::onCandidateTapped
+            strip.onModeTapped = {
+                dispatchKey(MokyaKeys.KEY_MODE, true)
+                dispatchKey(MokyaKeys.KEY_MODE, false)
+            }
+            candidateStrip = strip
+        }
+
+    /** Never take over the screen in landscape; the strip shows the composition. */
+    override fun onEvaluateFullscreenMode(): Boolean = false
 
     override fun onStartInput(attribute: EditorInfo, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
         // Only matters when input restarts in the same editor: a new editor
         // starts with an empty engine (onFinishInput aborted it).
-        engine?.abort()
+        runEngine { it.abort() }
         resetTracking(attribute.initialSelStart, attribute.initialSelEnd)
+        consumedKeyDowns.clear()
+
+        val required = EditorPolicy.requiredMode(attribute.inputType)
+        editorForcesMode = required != null
+        switchMode(required ?: userMode)
+        lruSnapshot = if (EditorPolicy.forbidsLearning(attribute.inputType, attribute.imeOptions)) {
+            engine?.serializeLru()
+        } else {
+            null
+        }
         syncTextContext()
+        refreshUi()
+    }
+
+    override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
+        super.onStartInputView(info, restarting)
+        refreshUi()
+    }
+
+    override fun onWindowShown() {
+        super.onWindowShown()
+        refreshUi()
+    }
+
+    override fun onFinishInputView(finishingInput: Boolean) {
+        keyboardView?.cancelTouches()
+        super.onFinishInputView(finishingInput)
     }
 
     override fun onFinishInput() {
-        engine?.abort()   // discards pending input and clears our composing text
+        runEngine { it.abort() }   // discards pending input and clears our composing text
         stopTick()
+        lruSnapshot?.let { engine?.loadLru(it) }   // forget what this editor taught
+        lruSnapshot = null
         saveLru()
         resetTracking(-1, -1)
+        consumedKeyDowns.clear()
         super.onFinishInput()
     }
 
-    // ── Input from a front end ───────────────────────────────────────────
+    // ── Input ────────────────────────────────────────────────────────────
 
     /**
-     * Feeds one MIE key edge (a [io.github.tengigabytes.mokyaime.engine.MokyaKeys]
-     * value). For a long press of a Bopomofo key pass
-     * `MokyaKeys.KEY_FLAG_LONG_PRESS`. SYM1 needs both edges; other keys act
-     * on press. [eventTimeMs] must be on the uptimeMillis() time base (for
-     * hardware keys use KeyEvent.getEventTime()).
+     * Feeds one MIE key edge (a [MokyaKeys] value) from the on-screen
+     * keyboard, a hardware key or a test. For a long press of a Bopomofo key
+     * pass `MokyaKeys.KEY_FLAG_LONG_PRESS`; SYM1 needs both edges, other keys
+     * act on press. [eventTimeMs] is on the uptimeMillis() time base.
      *
-     * Intended for the keyboard UI / hardware key mapping, which do not
-     * exist yet.
+     * Up / Down on a non-empty candidate list move by one page (the engine
+     * leaves vertical navigation to the view).
      */
-    fun dispatchKey(
+    internal fun dispatchKey(
         keycode: Int,
         pressed: Boolean,
         flags: Int = 0,
         eventTimeMs: Long = SystemClock.uptimeMillis(),
     ) {
         val e = engine ?: return
-        editBatch { e.processKey(keycode, pressed, eventTimeMs, flags) }
-        scheduleTick()
+        if ((keycode == MokyaKeys.KEY_UP || keycode == MokyaKeys.KEY_DOWN) && !e.pickerActive) {
+            val count = e.candidates().size
+            if (count > 0) {
+                if (pressed) {
+                    runEngine {
+                        it.selectedCandidate =
+                            CandidateNavigation.pageJump(it.selectedCandidate, count, keycode == MokyaKeys.KEY_DOWN)
+                    }
+                }
+                return
+            }
+        }
+        val modeBefore = e.mode
+        runEngine { it.processKey(keycode, pressed, eventTimeMs, flags) }
+        if (e.mode != modeBefore) onModeChanged(e.mode)
+    }
+
+    private fun onCandidateTapped(index: Int) {
+        runEngine { e ->
+            val now = SystemClock.uptimeMillis()
+            if (e.pickerActive) {
+                // The picker selection only moves with the D-pad.
+                val steps = Math.floorMod(index - e.pickerSelected, e.pickerCells().size)
+                repeat(steps) { tap(e, MokyaKeys.KEY_RIGHT, now) }
+            } else {
+                e.selectedCandidate = index
+            }
+            tap(e, MokyaKeys.KEY_OK, now)
+        }
+    }
+
+    private fun onModeChanged(mode: InputMode) {
+        if (!editorForcesMode) {
+            userMode = mode
+            prefs.edit().putInt(PREF_MODE, mode.ordinal).apply()
+        }
+        // Without the on-screen keyboard, show the strip briefly so the new
+        // mode is visible.
+        modeFlashUntil = SystemClock.uptimeMillis() + MODE_FLASH_MS
+        handler.removeCallbacks(refreshRunnable)
+        handler.postDelayed(refreshRunnable, MODE_FLASH_MS)
+        refreshUi()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val e = engine
+        val editor = currentInputEditorInfo
+        if (e == null || currentInputConnection == null || editor == null ||
+            editor.inputType == InputType.TYPE_NULL
+        ) {
+            return super.onKeyDown(keyCode, event)
+        }
+        val hasCandidates = e.candidates().isNotEmpty()
+        val state = EngineState(e.mode, e.hasPending || e.pickerActive || hasCandidates, hasCandidates)
+        when (val action = HardwareKeyMapper.map(hardwareKey(event), state)) {
+            is HardwareAction.Engine -> {
+                dispatchKey(action.keycode, true, action.flags, event.eventTime)
+                dispatchKey(action.keycode, false, action.flags, event.eventTime)
+            }
+            is HardwareAction.Literal -> commitLiteral(action.text)
+            HardwareAction.Abort -> runEngine { it.abort() }
+            HardwareAction.Consume -> Unit
+            HardwareAction.PassThrough -> return super.onKeyDown(keyCode, event)
+        }
+        consumedKeyDowns += keyCode
+        return true
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean =
+        if (consumedKeyDowns.remove(keyCode)) true else super.onKeyUp(keyCode, event)
+
+    private fun hardwareKey(event: KeyEvent): HardwareKey {
+        val special = when (event.keyCode) {
+            KeyEvent.KEYCODE_SPACE -> SpecialKey.SPACE
+            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> SpecialKey.ENTER
+            KeyEvent.KEYCODE_DEL -> SpecialKey.DEL
+            KeyEvent.KEYCODE_DPAD_LEFT -> SpecialKey.LEFT
+            KeyEvent.KEYCODE_DPAD_RIGHT -> SpecialKey.RIGHT
+            KeyEvent.KEYCODE_DPAD_UP -> SpecialKey.UP
+            KeyEvent.KEYCODE_DPAD_DOWN -> SpecialKey.DOWN
+            KeyEvent.KEYCODE_TAB -> SpecialKey.TAB
+            KeyEvent.KEYCODE_ESCAPE -> SpecialKey.ESCAPE
+            KeyEvent.KEYCODE_LANGUAGE_SWITCH -> SpecialKey.LANGUAGE_SWITCH
+            else -> null
+        }
+        // The numeric keypad types digits, never Dachen phonemes.
+        val numpad = event.keyCode in KeyEvent.KEYCODE_NUMPAD_0..KeyEvent.KEYCODE_NUMPAD_EQUALS
+        return HardwareKey(
+            baseChar = if (special != null || numpad) null else event.getUnicodeChar(0).toKeyChar(),
+            char = event.unicodeChar.toKeyChar(),
+            special = special,
+            shift = event.isShiftPressed,
+            ctrl = event.isCtrlPressed,
+            alt = event.isAltPressed,
+            meta = event.isMetaPressed,
+            repeat = event.repeatCount > 0,
+        )
+    }
+
+    private fun Int.toKeyChar(): Char? =
+        if (this > 0 && this <= 0xFFFF && (this and KeyCharacterMap.COMBINING_ACCENT) == 0) toChar() else null
+
+    /** Commits pending input the way OK would, then inserts [text]. */
+    private fun commitLiteral(text: String) {
+        runEngine { e ->
+            when {
+                e.pickerActive -> e.abort()
+                e.hasPending || e.candidates().isNotEmpty() -> tap(e, MokyaKeys.KEY_OK, SystemClock.uptimeMillis())
+            }
+            commitToEditor(text)
+        }
+    }
+
+    private fun tap(e: MieEngine, keycode: Int, nowMs: Long) {
+        e.processKey(keycode, true, nowMs)
+        e.processKey(keycode, false, nowMs)
+    }
+
+    private fun switchMode(target: InputMode) {
+        val e = engine ?: return
+        repeat(InputMode.entries.size) {
+            if (e.mode == target) return
+            runEngine { tap(it, MokyaKeys.KEY_MODE, SystemClock.uptimeMillis()) }
+        }
     }
 
     // ── MieListener: engine → editor ─────────────────────────────────────
 
     override fun onCommit(text: String) {
         if (detached) return
-        val ic = currentInputConnection ?: return
         if (text == "\n") {
             // Idle OK. sendKeyChar runs the editor action (send / search /
             // next ...) when there is one, otherwise sends Enter.
@@ -157,16 +375,11 @@ class MokyaImeService : InputMethodService(), MieListener {
             expectedCursor = -1
             return
         }
-        ic.commitText(text, 1)   // replaces the composing text, if any
-        if (expectedCursor >= 0) expectedCursor += text.length - shown.text.length
-        shown = NOTHING_SHOWN
+        commitToEditor(text)
     }
 
     override fun onCompositionChanged() {
-        if (detached) return
-        showComposition()
-        scheduleTick()
-        // The candidate list / symbol picker UI will refresh from here.
+        compositionDirty = true   // synced in runEngine, once the engine call returns
     }
 
     override fun onDeleteBefore() {
@@ -202,6 +415,13 @@ class MokyaImeService : InputMethodService(), MieListener {
             },
         )
         expectedCursor = -1   // the editor decides where the cursor lands
+    }
+
+    private fun commitToEditor(text: String) {
+        val ic = currentInputConnection ?: return
+        ic.commitText(text, 1)   // replaces the composing text, if any
+        if (expectedCursor >= 0) expectedCursor += text.length - shown.text.length
+        shown = NOTHING_SHOWN
     }
 
     private fun showComposition() {
@@ -277,11 +497,13 @@ class MokyaImeService : InputMethodService(), MieListener {
                 e.abort()
             } finally {
                 detached = false
+                compositionDirty = false
             }
         }
         stopTick()
         expectedReports.clear()
         shown = NOTHING_SHOWN
+        refreshUi()
 
         val ic = currentInputConnection
         if (ic == null || composingStart < 0 || composingEnd <= composingStart) {
@@ -321,17 +543,24 @@ class MokyaImeService : InputMethodService(), MieListener {
     // ── Helpers ──────────────────────────────────────────────────────────
 
     /**
-     * Runs one engine call as a single editor batch, so the editor reports
-     * one consistent state for all the edits the call produced, and records
-     * where that state should leave the cursor.
+     * Runs one engine call as a single editor batch: the edits it produces
+     * (commits during the call, then the composing text once it returns)
+     * reach the editor as one consistent state, whose cursor position is
+     * recorded for [onUpdateSelection]. Then refreshes timers and UI.
      */
-    private inline fun <T> editBatch(block: () -> T): T {
+    private inline fun <T> runEngine(block: (MieEngine) -> T): T? {
+        val e = engine ?: return null
         val ic = currentInputConnection
         val cursorBefore = expectedCursor
         val shownBefore = shown
         ic?.beginBatchEdit()
         try {
-            return block()
+            val result = block(e)
+            if (compositionDirty) {
+                compositionDirty = false
+                showComposition()
+            }
+            return result
         } finally {
             ic?.endBatchEdit()
             val edited = expectedCursor != cursorBefore || shown != shownBefore
@@ -339,7 +568,27 @@ class MokyaImeService : InputMethodService(), MieListener {
                 expectedReports.addLast(expectedCursor)
                 while (expectedReports.size > MAX_EXPECTED_REPORTS) expectedReports.removeFirst()
             }
+            scheduleTick()
+            refreshUi()
         }
+    }
+
+    /** Pushes engine state to the keyboard, the strip and the candidates area. */
+    private fun refreshUi() {
+        val e = engine ?: return
+        keyboardView?.mode = e.mode
+        val picker = e.pickerActive
+        val items = if (picker) e.pickerCells() else e.candidates()
+        val selected = when {
+            picker -> e.pickerSelected
+            items.isEmpty() -> -1
+            else -> e.selectedCandidate
+        }
+        candidateStrip?.show(CandidateStripView.State(e.mode.indicator, items, selected, picker))
+        val composing = e.hasPending || items.isNotEmpty()
+        setCandidatesViewShown(
+            isInputViewShown || composing || SystemClock.uptimeMillis() < modeFlashUntil,
+        )
     }
 
     private fun resetTracking(selStart: Int, selEnd: Int) {
@@ -350,9 +599,7 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     private fun onTick() {
         tickScheduled = false
-        val e = engine ?: return
-        editBatch { e.tick(SystemClock.uptimeMillis()) }
-        scheduleTick()
+        runEngine { it.tick(SystemClock.uptimeMillis()) }
     }
 
     /** Runs the 20 ms tick only while the engine has timers running. */

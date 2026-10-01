@@ -11,7 +11,8 @@ enum class SpecialKey { SPACE, ENTER, DEL, LEFT, RIGHT, UP, DOWN, TAB, ESCAPE, L
  * A hardware key-down, reduced to what the mapping needs.
  *
  * @property baseChar character of the key without modifiers, e.g. `'q'`,
- *   `'1'`, `','` (identifies the key position for Dachen); null if none.
+ *   `'1'`, `','` (identifies the key position for Dachen); null if none or
+ *   if the key has no layout position (numeric keypad).
  * @property char character with the current modifiers, e.g. `'Q'`, `'!'`.
  * @property repeat true for auto-repeat events of a held key.
  */
@@ -120,7 +121,9 @@ object HardwareKeyMapper {
 
         key.special?.let { return mapSpecial(it, key.repeat, state) }
 
-        val base = key.baseChar?.lowercaseChar() ?: return HardwareAction.PassThrough
+        // No layout position (e.g. the numeric keypad): type the character.
+        val base = key.baseChar?.lowercaseChar()
+            ?: return if (key.repeat) HardwareAction.Consume else literalOrPass(key)
         val action = when (state.mode) {
             InputMode.SMART_ZH -> mapZh(base, key)
             InputMode.SMART_EN -> mapEn(base, key)

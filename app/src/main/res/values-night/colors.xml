@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <color name="keyboard_bg">#FF1E1E1E</color>
+    <color name="key_bg">#FF3A3A3A</color>
+    <color name="key_bg_function">#FF2A2A2A</color>
+    <color name="key_bg_pressed">#FF5C6B73</color>
+    <color name="key_text">#FFEEEEEE</color>
+    <color name="key_hint_text">#FF9E9E9E</color>
+    <color name="strip_bg">#FF262626</color>
+    <color name="strip_text">#FFEEEEEE</color>
+    <color name="strip_selected_bg">#FF34506B</color>
+</resources>
