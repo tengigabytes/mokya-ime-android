@@ -2,6 +2,7 @@
 package io.github.tengigabytes.mokyaime
 
 import android.content.SharedPreferences
+import android.graphics.PointF
 import android.graphics.Typeface
 import android.inputmethodservice.InputMethodService
 import android.os.Handler
@@ -619,4 +620,15 @@ class MokyaImeService : InputMethodService(), MieListener {
         val e = engine ?: return
         lruStore.save(e.serializeLru())
     }
+
+    // ── Test hooks (instrumentation tests run in this process) ───────────
+
+    internal val modeForTest: InputMode? get() = engine?.mode
+
+    internal fun switchModeForTest(mode: InputMode) = switchMode(mode)
+
+    internal fun candidatesForTest(): List<String> = engine?.candidates().orEmpty()
+
+    /** Screen position of an on-screen key, or null while the keyboard is not shown. */
+    internal fun keyCenterOnScreen(keycode: Int): PointF? = keyboardView?.keyCenterOnScreen(keycode)
 }
