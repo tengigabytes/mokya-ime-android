@@ -86,6 +86,14 @@ class HardwareKeyMapperTest {
     }
 
     @Test
+    fun numericKeypadTypesDigits() {
+        val numpad7 = HardwareKey(baseChar = null, char = '7')
+        assertEquals(Literal("7"), HardwareKeyMapper.map(numpad7, zhBusy))
+        assertEquals(Literal("7"), HardwareKeyMapper.map(numpad7, enIdle))
+        assertEquals(PassThrough, HardwareKeyMapper.map(numpad7, direct))
+    }
+
+    @Test
     fun modeSwitchFromAnyMode() {
         for (state in listOf(zhIdle, enBusy, direct)) {
             assertEquals(Engine(MokyaKeys.KEY_MODE), HardwareKeyMapper.map(sp(SpecialKey.SPACE, ctrl = true), state))

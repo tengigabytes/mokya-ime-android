@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import javax.inject.Inject
 import org.gradle.process.ExecOperations
 
@@ -11,9 +12,7 @@ android {
 
     defaultConfig {
         applicationId = "io.github.tengigabytes.mokyaime"
-        // Provisional value: the minimum supported Android version is still
-        // to be decided.
-        minSdk = 24
+        minSdk = 24   // Android 7.0
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
@@ -130,8 +129,48 @@ val generateMieDict = tasks.register<GenerateMieDictTask>("generateMieDict") {
     providers.gradleProperty("mokya.dict").orNull?.let { prebuilt.set(file(it)) }
 }
 
+// ── Licence texts shown in the app (LicensesActivity) ───────────────────
+
+abstract class CollectLicensesTask : DefaultTask() {
+    /** Asset file names, in the same order as [files]. */
+    @get:Input
+    abstract val names: ListProperty<String>
+
+    /** Source files, in the same order as [names]. */
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val files: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun collect() {
+        val dir = outputDir.get().dir("licenses").asFile.apply {
+            parentFile.deleteRecursively()
+            mkdirs()
+        }
+        names.get().zip(files.files.toList()).forEach { (name, file) -> file.copyTo(File(dir, name)) }
+    }
+}
+
+val collectLicenses = tasks.register<CollectLicensesTask>("collectLicenses") {
+    description = "Packages NOTICE and the licence texts as assets."
+    val root = layout.projectDirectory.dir("..")
+    val sources = linkedMapOf(
+        "NOTICE" to root.file("NOTICE"),
+        "Apache-2.0.txt" to root.file("LICENSE"),
+        "libmie-MIT.txt" to layout.projectDirectory.file("src/main/cpp/libmie/LICENSE"),
+        "LGPL-2.1.txt" to root.file("licenses/lgpl-2.1.txt"),
+        "CC-BY-SA-4.0.txt" to root.file("licenses/cc-by-sa-4.0.txt"),
+    )
+    names.set(sources.keys.toList())
+    files.from(sources.values)
+}
+
 androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(generateMieDict, GenerateMieDictTask::outputDir)
+        variant.sources.assets?.addGeneratedSourceDirectory(collectLicenses, CollectLicensesTask::outputDir)
     }
 }
