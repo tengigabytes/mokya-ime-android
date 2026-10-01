@@ -101,7 +101,10 @@ CI (`.github/workflows/android.yml`) runs on every push and pull request:
 
 - the host tests;
 - `assembleDebug`, plus checks that the dictionary is stored uncompressed,
-  the JNI library exists for every ABI and the licence texts are packaged;
+  the JNI library exists for every ABI and the licence texts are packaged.
+  The debug APK is kept for 30 days as the run's `mokya-ime-debug-<commit>`
+  artifact. Each run signs it with a new debug key, so uninstall the
+  previous build before installing a newer one;
 - the end-to-end tests on an API 34 emulator. These type through injected
   hardware keys and touches on the on-screen keyboard.
 
