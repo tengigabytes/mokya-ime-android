@@ -67,6 +67,7 @@ tasks.test {
     systemProperty("java.library.path", hostJniDir.get().asFile.path)
     systemProperty("mokya.testDict", testDictFile.get().asFile.path)
     systemProperty("mokya.keycodeHeader", libmieDir.file("include/mie/keycode.h").asFile.path)
+    systemProperty("mokya.keyTableSource", libmieDir.file("src/ime_keys.cpp").asFile.path)
     // Optional: full dictionary for RealDictionarySmokeTest.
     providers.gradleProperty("mokya.realDict").orNull?.let { systemProperty("mokya.realDict", it) }
 }
