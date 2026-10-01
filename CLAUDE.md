@@ -62,8 +62,10 @@ use the internal hooks at the end of `MokyaImeService`. They enable the IME
 with `ime enable/set`, type into `SetupActivity`'s field via injected key
 events and touches, and assert on the field's text. A failure message
 includes the IME's recent events (`MokyaImeService.traceForTest`), since
-CI only keeps the Gradle log. Wait for the IME to see an app-side edit
-before typing: `setText` restarts input asynchronously (use `append`).
+CI only keeps the Gradle log; CI also prints the whole trace from logcat
+(tag `MokyaTrace`) after every emulator run. Wait for the IME to see an
+app-side edit before typing: `setText` restarts input asynchronously (use
+`append`).
 
 CI: `.github/workflows/android.yml` runs the host tests, `assembleDebug`
 (with APK content checks) and the emulator tests on every push / PR.

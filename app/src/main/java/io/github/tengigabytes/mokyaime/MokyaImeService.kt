@@ -84,9 +84,15 @@ class MokyaImeService : InputMethodService(), MieListener {
         @Volatile
         internal var traceForTest: MutableList<String>? = null
 
-        /** Records an event for [traceForTest]; main thread only. */
+        /**
+         * Records an event for [traceForTest], and in logcat (tag MokyaTrace)
+         * so CI can print the trace of passing runs too; main thread only.
+         */
         internal inline fun trace(event: () -> String) {
-            traceForTest?.add("${SystemClock.uptimeMillis()} ${event()}")
+            val trace = traceForTest ?: return
+            val line = "${SystemClock.uptimeMillis()} ${event()}"
+            trace.add(line)
+            Log.i("MokyaTrace", line)
         }
     }
 
