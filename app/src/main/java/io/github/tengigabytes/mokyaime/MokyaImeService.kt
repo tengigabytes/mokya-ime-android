@@ -278,6 +278,7 @@ class MokyaImeService : InputMethodService(), MieListener {
     }
 
     private fun onCandidateTapped(index: Int) {
+        trace { "candidate $index tapped" }
         runEngine { e ->
             val now = SystemClock.uptimeMillis()
             if (e.pickerActive) {
@@ -664,6 +665,8 @@ class MokyaImeService : InputMethodService(), MieListener {
     /** End of the selection in the last onUpdateSelection report, or of the initial one. */
     internal var selectionEndForTest = -1
         private set
+
+    internal val candidateStripForTest: CandidateStripView? get() = candidateStrip
 
     /** Screen position of an on-screen key, or null while the keyboard is not shown. */
     internal fun keyCenterOnScreen(keycode: Int): PointF? = keyboardView?.keyCenterOnScreen(keycode)

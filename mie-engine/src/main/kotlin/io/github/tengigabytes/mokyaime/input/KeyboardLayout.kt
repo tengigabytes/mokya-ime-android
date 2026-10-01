@@ -6,17 +6,17 @@ import io.github.tengigabytes.mokyaime.engine.MokyaKeys
 
 /**
  * On-screen keyboard arrangement, following MokyaLora's keypad
- * (docs/requirements/hardware-requirements.md §8.1 in MokyaLora): the
- * navigation cluster (D-pad, OK, DEL) on top, then the 5×5 core input area.
- * FUNC, SET, BACK and the volume keys are not used by the engine and are
- * left out; Android's own Back key hides the keyboard.
+ * (docs/requirements/hardware-requirements.md §8.1 in MokyaLora): OK and DEL
+ * from the navigation cluster on top, then the 5×5 core input area.
+ *
+ * The D-pad is left out: on a touch screen candidates are tapped in the
+ * strip and the cursor is placed by touching the text (hardware arrow keys
+ * still navigate). FUNC, SET, BACK and the volume keys are not used by the
+ * engine either; Android's own Back key hides the keyboard.
  */
 object KeyboardLayout {
 
-    val navigationRow: List<Int> = listOf(
-        MokyaKeys.KEY_LEFT, MokyaKeys.KEY_UP, MokyaKeys.KEY_OK,
-        MokyaKeys.KEY_DOWN, MokyaKeys.KEY_RIGHT, MokyaKeys.KEY_DEL,
-    )
+    val actionRow: List<Int> = listOf(MokyaKeys.KEY_OK, MokyaKeys.KEY_DEL)
 
     val coreRows: List<List<Int>> = listOf(
         listOf(MokyaKeys.KEY_1, MokyaKeys.KEY_3, MokyaKeys.KEY_5, MokyaKeys.KEY_7, MokyaKeys.KEY_9),
@@ -26,7 +26,7 @@ object KeyboardLayout {
         listOf(MokyaKeys.KEY_MODE, MokyaKeys.KEY_TAB, MokyaKeys.KEY_SPACE, MokyaKeys.KEY_SYM1, MokyaKeys.KEY_SYM2),
     )
 
-    val rows: List<List<Int>> = listOf(navigationRow) + coreRows
+    val rows: List<List<Int>> = listOf(actionRow) + coreRows
 
     /** Text drawn on a key: [main] large in the centre, [hint] small above it. */
     data class Label(val main: String, val hint: String)
@@ -50,10 +50,6 @@ object KeyboardLayout {
             MokyaKeys.KEY_SPACE -> Label("␣", "SPACE")
             MokyaKeys.KEY_SYM1 -> Label(if (zh) "，" else ",", "SYM")
             MokyaKeys.KEY_SYM2 -> Label(if (zh) "。？！" else ". ? !", "")
-            MokyaKeys.KEY_LEFT -> Label("◀", "")
-            MokyaKeys.KEY_RIGHT -> Label("▶", "")
-            MokyaKeys.KEY_UP -> Label("▲", "")
-            MokyaKeys.KEY_DOWN -> Label("▼", "")
             MokyaKeys.KEY_OK -> Label("OK", "")
             MokyaKeys.KEY_DEL -> Label("⌫", "DEL")
             else -> Label("", "")

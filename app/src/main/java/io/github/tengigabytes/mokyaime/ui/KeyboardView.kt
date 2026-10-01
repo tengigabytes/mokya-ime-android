@@ -21,7 +21,7 @@ import io.github.tengigabytes.mokyaime.input.KeyboardLayout
 import io.github.tengigabytes.mokyaime.input.PressTracker
 
 /**
- * On-screen MokyaLora half-keyboard ([KeyboardLayout]): the navigation row
+ * On-screen MokyaLora half-keyboard ([KeyboardLayout]): the OK / DEL row
  * and the 5×5 core input area, drawn on a canvas. Touches become MIE key
  * edges through [PressTracker], which reproduces the device's long-press
  * timing; [onKey] receives them.
@@ -51,7 +51,7 @@ class KeyboardView @JvmOverloads constructor(
     private val density = resources.displayMetrics.density
     private fun sp(value: Float) =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, value, resources.displayMetrics)
-    private val navRowHeight = 44 * density
+    private val actionRowHeight = 44 * density
     private val keyRowHeight = 52 * density
     private val gap = 3 * density
     private val radius = 6 * density
@@ -86,14 +86,14 @@ class KeyboardView @JvmOverloads constructor(
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val height = navRowHeight + keyRowHeight * KeyboardLayout.coreRows.size + gap
+        val height = actionRowHeight + keyRowHeight * KeyboardLayout.coreRows.size + gap
         setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), height.toInt())
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         var top = gap / 2
         rows.forEachIndexed { index, row ->
-            val rowHeight = if (index == 0) navRowHeight else keyRowHeight
+            val rowHeight = if (index == 0) actionRowHeight else keyRowHeight
             val keyWidth = (w - gap) / row.size
             row.forEachIndexed { col, key ->
                 val left = gap / 2 + col * keyWidth

@@ -2,6 +2,7 @@
 package io.github.tengigabytes.mokyaime.ui
 
 import android.content.Context
+import android.graphics.PointF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
@@ -11,11 +12,13 @@ import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import io.github.tengigabytes.mokyaime.R
+import io.github.tengigabytes.mokyaime.input.StripPaging
 
 /**
- * The strip above the keyboard, as on MokyaLora's IME view:
- * `[mode] candidate candidate … [n/total]`. While the SYM1 picker is open it
- * lists the picker's symbols instead.
+ * The strip above the keyboard: `[mode] ‹ candidate candidate … ›`. Tapping
+ * a candidate commits it; ‹ › page through the row ([StripPaging]), which
+ * can also be swiped. While the SYM1 picker is open it lists the picker's
+ * symbols instead.
  */
 class CandidateStripView(context: Context) : LinearLayout(context) {
 
@@ -47,11 +50,11 @@ class CandidateStripView(context: Context) : LinearLayout(context) {
         isHorizontalScrollBarEnabled = false
         addView(itemsRow, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
     }
-    private val positionView = TextView(context).apply {
-        gravity = Gravity.CENTER
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-        setTextColor(context.getColor(R.color.key_hint_text))
-        minWidth = (52 * density).toInt()
+    private val previousPage = pageButton("‹", R.string.candidates_previous_page) {
+        pageTo(StripPaging.previous(starts(), itemsRow.width, scroller.scrollX, scroller.width))
+    }
+    private val nextPage = pageButton("›", R.string.candidates_next_page) {
+        pageTo(StripPaging.next(starts(), itemsRow.width, scroller.scrollX, scroller.width))
     }
 
     private var shownItems: List<String> = emptyList()
@@ -62,9 +65,14 @@ class CandidateStripView(context: Context) : LinearLayout(context) {
         setBackgroundColor(context.getColor(R.color.strip_bg))
         val height = (44 * density).toInt()
         minimumHeight = height
+        val pageButtonWidth = (40 * density).toInt()
         addView(modeView, LayoutParams(LayoutParams.WRAP_CONTENT, height))
+        addView(previousPage, LayoutParams(pageButtonWidth, height))
         addView(scroller, LayoutParams(0, height, 1f))
-        addView(positionView, LayoutParams(LayoutParams.WRAP_CONTENT, height))
+        addView(nextPage, LayoutParams(pageButtonWidth, height))
+        scroller.setOnScrollChangeListener { _, _, _, _, _ -> updatePageButtons() }
+        itemsRow.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updatePageButtons() }
+        updatePageButtons()
     }
 
     fun show(state: State) {
@@ -81,10 +89,32 @@ class CandidateStripView(context: Context) : LinearLayout(context) {
             shownSelected = state.selected
             itemsRow.getChildAt(state.selected)?.let { child -> scroller.post { scrollIntoView(child) } }
         }
-        positionView.text = when {
-            state.items.isEmpty() -> ""
-            state.selected >= 0 -> "${state.selected + 1}/${state.items.size}"
-            else -> "${state.items.size}"
+    }
+
+    private fun pageButton(label: String, description: Int, onTap: () -> Unit) = TextView(context).apply {
+        text = label
+        contentDescription = context.getString(description)
+        gravity = Gravity.CENTER
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 26f)
+        setTextColor(textColor)
+        setOnClickListener { onTap() }
+    }
+
+    private fun starts(): List<Int> = (0 until itemsRow.childCount).map { itemsRow.getChildAt(it).left }
+
+    private fun pageTo(x: Int) {
+        scroller.smoothScrollTo(x, 0)
+    }
+
+    /** Hidden while there is nothing to page; dimmed at either end. */
+    private fun updatePageButtons() {
+        val visibility = if (itemsRow.childCount == 0) INVISIBLE else VISIBLE
+        val back = StripPaging.canPageBack(scroller.scrollX)
+        val forward = StripPaging.canPageForward(itemsRow.width, scroller.scrollX, scroller.width)
+        for ((button, enabled) in listOf(previousPage to back, nextPage to forward)) {
+            button.visibility = visibility
+            button.isEnabled = enabled
+            button.alpha = if (enabled) 1f else 0.25f
         }
     }
 
@@ -109,6 +139,27 @@ class CandidateStripView(context: Context) : LinearLayout(context) {
         } else {
             null
         }
+    }
+
+    // ── Test hooks (instrumentation tests run in this process) ───────────
+
+    internal val scrollXForTest: Int get() = scroller.scrollX
+
+    internal val canPageForwardForTest: Boolean get() = nextPage.isEnabled
+
+    /** Screen position of the ‹ (false) or › (true) button's centre. */
+    internal fun pageButtonCenterOnScreen(forward: Boolean): PointF = centerOnScreen(if (forward) nextPage else previousPage)
+
+    /** Index of the first candidate shown in full, or -1. */
+    internal fun firstVisibleItemForTest(): Int =
+        (0 until itemsRow.childCount).firstOrNull { itemsRow.getChildAt(it).left >= scroller.scrollX } ?: -1
+
+    internal fun itemCenterOnScreen(index: Int): PointF? = itemsRow.getChildAt(index)?.let(::centerOnScreen)
+
+    private fun centerOnScreen(view: View): PointF {
+        val origin = IntArray(2)
+        view.getLocationOnScreen(origin)
+        return PointF(origin[0] + view.width / 2f, origin[1] + view.height / 2f)
     }
 
     private fun scrollIntoView(child: View) {

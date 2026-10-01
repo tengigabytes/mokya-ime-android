@@ -149,6 +149,27 @@ class ImeEndToEndTest {
     }
 
     @Test
+    fun touchPagesCandidatesAndTapsOne() {
+        touch(MokyaKeys.KEY_A)   // ㄇㄋ
+        touch(MokyaKeys.KEY_C)   // ㄏㄒ
+        waitForText("ㄇㄋ, ㄏㄒ")
+        val strip = { MokyaImeService.current!!.candidateStripForTest!! }
+        waitFor("more candidates than fit") { onMain { strip().canPageForwardForTest } }
+
+        tapAt(onMain { strip().pageButtonCenterOnScreen(forward = true) })
+        var lastX = -1
+        waitFor("strip paged") {
+            val x = onMain { strip().scrollXForTest }
+            (x > 0 && x == lastX).also { lastX = x }   // scrolled, and the animation ended
+        }
+        val index = onMain { strip().firstVisibleItemForTest() }
+        val word = onMain { MokyaImeService.current!!.candidatesForTest()[index] }
+        assertTrue("first candidate of the second page, got $index", index > 0)
+        tapAt(onMain { strip().itemCenterOnScreen(index)!! })
+        waitForText(word)
+    }
+
+    @Test
     fun touchLongPressPinsAndCyclesPhoneme() {
         // Long press → primary ㄆ; a second long press whose 500 ms mark
         // falls within 800 ms of the first one cycles to the secondary ㄊ.
@@ -257,8 +278,14 @@ class ImeEndToEndTest {
         onMain { MokyaImeService.trace { "test: touch $keycode for $holdMs ms" } }
         val point = onMain { MokyaImeService.current?.keyCenterOnScreen(keycode) }
         assertNotNull("key $keycode not on screen", point)
+        tapAt(point!!, holdMs)
+    }
+
+    /** Touches the screen at [point] for [holdMs]. */
+    private fun tapAt(point: PointF, holdMs: Long = 60) {
+        onMain { MokyaImeService.trace { "test: tap at (${point.x}, ${point.y})" } }
         val down = SystemClock.uptimeMillis()
-        inject(MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, point!!.x, point.y, 0))
+        inject(MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, point.x, point.y, 0))
         SystemClock.sleep(holdMs)
         inject(MotionEvent.obtain(down, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, point.x, point.y, 0))
         instrumentation.waitForIdleSync()
