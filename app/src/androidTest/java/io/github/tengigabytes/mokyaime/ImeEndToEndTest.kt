@@ -10,6 +10,7 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.WindowInsets
+import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import androidx.test.core.app.ActivityScenario
@@ -110,13 +111,21 @@ class ImeEndToEndTest {
 
     @Test
     fun passwordFieldTypesDirectly() {
-        scenario.onActivity { activity ->
-            field.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            activity.getSystemService(InputMethodManager::class.java).restartInput(field)
-        }
+        restartField(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
         waitFor("Direct mode") { onMain { MokyaImeService.current!!.modeForTest } == InputMode.DIRECT }
         keys("ab1")
         waitForText("ab1")
+    }
+
+    @Test
+    fun okShowsTheEditorActionWhenIdle() {
+        restartField(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_SEND)
+        val send = instrumentation.targetContext.getString(R.string.enter_send)
+        waitFor("OK labelled Send") { onMain { MokyaImeService.current!!.okLabelForTest } == send }
+        keys("su")
+        waitFor("OK commits while composing") { onMain { MokyaImeService.current!!.okLabelForTest } == "OK" }
+        key(KeyEvent.KEYCODE_ENTER)   // commits the word, does not send
+        waitFor("OK labelled Send again") { onMain { MokyaImeService.current!!.okLabelForTest } == send }
     }
 
     @Test
@@ -137,6 +146,28 @@ class ImeEndToEndTest {
     }
 
     // ── On-screen keyboard ───────────────────────────────────────────────
+
+    @Test
+    fun abcLayoutTypesQwertyWithShift() {
+        restartField(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        waitForQwerty()
+        tapText("a")
+        tapShift()
+        tapText("b")   // one-shot Shift: B, then back to lower case
+        tapText("1")
+        tapShift()
+        tapText("2")   // Shift on the number row: @
+        tapText("c")
+        waitForText("aB1@c")
+    }
+
+    @Test
+    fun phoneFieldTypesOnTheNumberRow() {
+        restartField(InputType.TYPE_CLASS_PHONE)
+        waitForQwerty()
+        "0912".forEach { tapText("$it") }
+        waitForText("0912")
+    }
 
     @Test
     fun touchTapsAndOk() {
@@ -279,6 +310,32 @@ class ImeEndToEndTest {
         val point = onMain { MokyaImeService.current?.keyCenterOnScreen(keycode) }
         assertNotNull("key $keycode not on screen", point)
         tapAt(point!!, holdMs)
+    }
+
+    private fun restartField(inputType: Int, imeOptions: Int = EditorInfo.IME_NULL) {
+        scenario.onActivity { activity ->
+            field.inputType = inputType
+            field.imeOptions = imeOptions
+            activity.getSystemService(InputMethodManager::class.java).restartInput(field)
+        }
+    }
+
+    private fun waitForQwerty() {
+        waitFor("QWERTY layout") {
+            onMain { MokyaImeService.current!!.modeForTest == InputMode.DIRECT && MokyaImeService.current!!.textKeyCenterOnScreen("q") != null }
+        }
+    }
+
+    private fun tapText(normal: String) {
+        val point = onMain { MokyaImeService.current?.textKeyCenterOnScreen(normal) }
+        assertNotNull("key '$normal' not on screen", point)
+        tapAt(point!!)
+    }
+
+    private fun tapShift() {
+        val point = onMain { MokyaImeService.current?.shiftKeyCenterOnScreen() }
+        assertNotNull("Shift not on screen", point)
+        tapAt(point!!)
     }
 
     /** Touches the screen at [point] for [holdMs]. */

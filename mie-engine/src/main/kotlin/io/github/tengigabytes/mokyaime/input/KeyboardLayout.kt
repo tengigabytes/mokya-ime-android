@@ -12,7 +12,8 @@ import io.github.tengigabytes.mokyaime.engine.MokyaKeys
  * The D-pad is left out: on a touch screen candidates are tapped in the
  * strip and the cursor is placed by touching the text (hardware arrow keys
  * still navigate). FUNC, SET, BACK and the volume keys are not used by the
- * engine either; Android's own Back key hides the keyboard.
+ * engine either; Android's own Back key hides the keyboard. ABC mode uses
+ * [qwertyRows] instead of multi-tap.
  */
 object KeyboardLayout {
 
@@ -26,7 +27,38 @@ object KeyboardLayout {
         listOf(MokyaKeys.KEY_MODE, MokyaKeys.KEY_TAB, MokyaKeys.KEY_SPACE, MokyaKeys.KEY_SYM1, MokyaKeys.KEY_SYM2),
     )
 
+    /** The MokyaLora half-keyboard: OK / DEL, then the 5×5 core. */
     val rows: List<List<Int>> = listOf(actionRow) + coreRows
+
+    /**
+     * ABC on the touch screen: QWERTY with a number row, where MokyaLora's
+     * keypad uses multi-tap. Shift gives capitals and, on the number row and
+     * the punctuation keys, the symbols of a US keyboard. Every row is
+     * [ROW_UNITS] key units wide. Number and phone fields get this layout
+     * too (ABC is their required mode).
+     */
+    val qwertyRows: List<List<TouchKey>> = listOf(
+        "1234567890".zip("!@#$%^&*()").map { (n, s) -> TouchKey.Text("$n", "$s") },
+        "qwertyuiop".map(::letter),
+        "asdfghjkl".map(::letter) + TouchKey.Text("-", "_"),
+        listOf(TouchKey.Shift(1.5f)) + "zxcvbnm".map(::letter) + TouchKey.Engine(MokyaKeys.KEY_DEL, 1.5f),
+        listOf(
+            TouchKey.Engine(MokyaKeys.KEY_MODE, 1.5f),
+            TouchKey.Text("/", "?"),
+            TouchKey.Text(",", ";"),
+            TouchKey.Text(" ", " ", 3f),
+            TouchKey.Text(".", ":"),
+            TouchKey.Engine(MokyaKeys.KEY_OK, 2.5f),
+        ),
+    )
+
+    const val ROW_UNITS = 10f
+
+    /** The on-screen rows for [mode]. */
+    fun touchRows(mode: InputMode): List<List<TouchKey>> =
+        if (mode == InputMode.DIRECT) qwertyRows else rows.map { row -> row.map { TouchKey.Engine(it) } }
+
+    private fun letter(c: Char) = TouchKey.Text("$c", "${c.uppercaseChar()}")
 
     /** Text drawn on a key: [main] large in the centre, [hint] small above it. */
     data class Label(val main: String, val hint: String)

@@ -27,6 +27,7 @@ import io.github.tengigabytes.mokyaime.engine.PendingView
 import io.github.tengigabytes.mokyaime.input.CandidateNavigation
 import io.github.tengigabytes.mokyaime.input.EditorPolicy
 import io.github.tengigabytes.mokyaime.input.EngineState
+import io.github.tengigabytes.mokyaime.input.EnterAction
 import io.github.tengigabytes.mokyaime.input.HardwareAction
 import io.github.tengigabytes.mokyaime.input.HardwareKey
 import io.github.tengigabytes.mokyaime.input.HardwareKeyMapper
@@ -170,6 +171,7 @@ class MokyaImeService : InputMethodService(), MieListener {
     override fun onCreateInputView(): View =
         KeyboardView(this).also { view ->
             view.onKey = { keycode, pressed, flags -> dispatchKey(keycode, pressed, flags) }
+            view.onText = ::commitLiteral
             engine?.let { view.mode = it.mode }
             keyboardView = view
         }
@@ -215,7 +217,19 @@ class MokyaImeService : InputMethodService(), MieListener {
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         trace { "startInputView restarting=$restarting" }
+        keyboardView?.idleOkLabel = enterLabel(EnterAction.of(info.imeOptions))
+        keyboardView?.resetShift()
         refreshUi()
+    }
+
+    private fun enterLabel(action: EnterAction): String = when (action) {
+        EnterAction.NEWLINE -> "↵"
+        EnterAction.GO -> getString(R.string.enter_go)
+        EnterAction.SEARCH -> getString(R.string.enter_search)
+        EnterAction.SEND -> getString(R.string.enter_send)
+        EnterAction.NEXT -> getString(R.string.enter_next)
+        EnterAction.DONE -> getString(R.string.enter_done)
+        EnterAction.PREVIOUS -> getString(R.string.enter_previous)
     }
 
     override fun onWindowShown() {
@@ -612,6 +626,7 @@ class MokyaImeService : InputMethodService(), MieListener {
         }
         candidateStrip?.show(CandidateStripView.State(e.mode.indicator, items, selected, picker))
         val composing = e.hasPending || items.isNotEmpty()
+        keyboardView?.composing = composing
         setCandidatesViewShown(
             isInputViewShown || composing || SystemClock.uptimeMillis() < modeFlashUntil,
         )
@@ -670,4 +685,10 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     /** Screen position of an on-screen key, or null while the keyboard is not shown. */
     internal fun keyCenterOnScreen(keycode: Int): PointF? = keyboardView?.keyCenterOnScreen(keycode)
+
+    internal fun textKeyCenterOnScreen(normal: String): PointF? = keyboardView?.textKeyCenterOnScreen(normal)
+
+    internal fun shiftKeyCenterOnScreen(): PointF? = keyboardView?.shiftKeyCenterOnScreen()
+
+    internal val okLabelForTest: String? get() = keyboardView?.okLabelForTest
 }
