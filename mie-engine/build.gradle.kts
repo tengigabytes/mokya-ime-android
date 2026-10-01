@@ -1,3 +1,5 @@
+import javax.inject.Inject
+import org.gradle.process.ExecOperations
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 // Pure-JVM Kotlin binding for the native engine. Kept free of Android APIs so
@@ -29,20 +31,55 @@ val hostJniDir = layout.buildDirectory.dir("host-jni")
 val testDictFile = layout.buildDirectory.file("test-dict/dict_mie_v4.bin")
 val python = providers.gradleProperty("mokya.python").orElse("python3")
 // The JDK running Gradle provides jni.h for the host build.
-val javaHome = providers.systemProperty("java.home")
+val gradleJavaHome = providers.systemProperty("java.home")
 
-val buildHostJni by tasks.registering(Exec::class) {
+// Runs cmake directly (no shell), so paths with backslashes or spaces work on
+// Windows too.
+abstract class BuildHostJniTask @Inject constructor(
+    private val exec: ExecOperations,
+) : DefaultTask() {
+
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val sources: ConfigurableFileCollection
+
+    @get:Internal
+    abstract val sourceDir: DirectoryProperty
+
+    @get:Input
+    abstract val javaHome: Property<String>
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun build() {
+        val jdk = javaHome.get()
+        if (!File(jdk, "include/jni.h").isFile) {
+            throw GradleException(
+                "The host JNI build needs a full JDK (include/jni.h), but Gradle runs on $jdk. " +
+                    "Point JAVA_HOME at a JDK 17+.",
+            )
+        }
+        val out = outputDir.get().asFile.path
+        exec.exec {
+            commandLine(
+                "cmake", "-S", sourceDir.get().asFile.path, "-B", out,
+                "-DCMAKE_BUILD_TYPE=Debug", "-DMOKYA_JAVA_HOME=$jdk",
+            )
+        }
+        // --config selects the configuration on multi-config generators
+        // (Visual Studio); single-config ones ignore it.
+        exec.exec { commandLine("cmake", "--build", out, "--config", "Debug") }
+    }
+}
+
+val buildHostJni = tasks.register<BuildHostJniTask>("buildHostJni") {
     description = "Builds libmokyaime_jni for the host JVM (unit tests only)."
-    inputs.files(fileTree(cppDir) { exclude("**/.git", "libmie/data*/**") })
-    outputs.dir(hostJniDir)
-    val src = cppDir.asFile.path
-    val out = hostJniDir.get().asFile.path
-    val jdk = javaHome.get()
-    commandLine(
-        "sh", "-c",
-        "cmake -S \"$src\" -B \"$out\" -DCMAKE_BUILD_TYPE=Debug -DMOKYA_JAVA_HOME=\"$jdk\" " +
-            "&& cmake --build \"$out\"",
-    )
+    sources.from(fileTree(cppDir) { exclude("**/.git", "libmie/data*/**") })
+    sourceDir.set(cppDir)
+    javaHome.set(gradleJavaHome)
+    outputDir.set(hostJniDir)
 }
 
 val generateTestDict by tasks.registering(Exec::class) {
