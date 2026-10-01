@@ -185,7 +185,7 @@ class ImeEndToEndTest {
         touch(MokyaKeys.KEY_C)   // ㄏㄒ
         waitForText("ㄇㄋ, ㄏㄒ")
         val strip = { MokyaImeService.current!!.candidateStripForTest!! }
-        waitFor("more candidates than fit") { onMain { strip().canPageForwardForTest } }
+        waitFor("more candidates than fit") { onMain { strip().settledForTest && strip().canPageForwardForTest } }
 
         tapAt(onMain { strip().pageButtonCenterOnScreen(forward = true) })
         var lastX = -1
