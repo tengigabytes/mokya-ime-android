@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // mie_jni.cpp — JNI bridge between the Kotlin IME service and libmie.
 //
 // One native Engine per MieEngine (Kotlin). It owns the dictionary searchers,
