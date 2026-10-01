@@ -74,6 +74,18 @@ class MokyaImeService : InputMethodService(), MieListener {
         @Volatile
         internal var current: MokyaImeService? = null
             private set
+
+        /**
+         * Set by instrumentation tests to record lifecycle and key events,
+         * which they print when an assertion fails. Null otherwise.
+         */
+        @Volatile
+        internal var traceForTest: MutableList<String>? = null
+
+        /** Records an event for [traceForTest]; main thread only. */
+        internal inline fun trace(event: () -> String) {
+            traceForTest?.add("${SystemClock.uptimeMillis()} ${event()}")
+        }
     }
 
     private var engine: MieEngine? = null
@@ -177,10 +189,15 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     override fun onStartInput(attribute: EditorInfo, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
+        trace {
+            "startInput restarting=$restarting field=${attribute.fieldId} type=0x${attribute.inputType.toString(16)} " +
+                "sel=${attribute.initialSelStart}..${attribute.initialSelEnd}"
+        }
         // Only matters when input restarts in the same editor: a new editor
         // starts with an empty engine (onFinishInput aborted it).
         runEngine { it.abort() }
         resetTracking(attribute.initialSelStart, attribute.initialSelEnd)
+        selectionEndForTest = attribute.initialSelEnd
         consumedKeyDowns.clear()
 
         val required = EditorPolicy.requiredMode(attribute.inputType)
@@ -197,6 +214,7 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        trace { "startInputView restarting=$restarting" }
         refreshUi()
     }
 
@@ -206,11 +224,13 @@ class MokyaImeService : InputMethodService(), MieListener {
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
+        trace { "finishInputView finishingInput=$finishingInput" }
         keyboardView?.cancelTouches()
         super.onFinishInputView(finishingInput)
     }
 
     override fun onFinishInput() {
+        trace { "finishInput" }
         runEngine { it.abort() }   // discards pending input and clears our composing text
         stopTick()
         lruSnapshot?.let { engine?.loadLru(it) }   // forget what this editor taught
@@ -239,6 +259,7 @@ class MokyaImeService : InputMethodService(), MieListener {
         eventTimeMs: Long = SystemClock.uptimeMillis(),
     ) {
         val e = engine ?: return
+        trace { "key $keycode pressed=$pressed flags=$flags" }
         if ((keycode == MokyaKeys.KEY_UP || keycode == MokyaKeys.KEY_DOWN) && !e.pickerActive) {
             val count = e.candidates().size
             if (count > 0) {
@@ -458,6 +479,8 @@ class MokyaImeService : InputMethodService(), MieListener {
         candidatesEnd: Int,
     ) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        trace { "selection $newSelStart..$newSelEnd composing=$candidatesStart..$candidatesEnd" }
+        selectionEndForTest = newSelEnd
         val e = engine ?: return
         val collapsed = newSelStart == newSelEnd
 
@@ -492,6 +515,7 @@ class MokyaImeService : InputMethodService(), MieListener {
      * leaving the cursor where the user put it.
      */
     private fun discardComposition(selStart: Int, selEnd: Int, composingStart: Int, composingEnd: Int) {
+        trace { "discardComposition" }
         engine?.let { e ->
             detached = true
             try {
@@ -600,7 +624,9 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     private fun onTick() {
         tickScheduled = false
-        runEngine { it.tick(SystemClock.uptimeMillis()) }
+        if (runEngine { it.tick(SystemClock.uptimeMillis()) } == true) {
+            trace { "tick changed state, picker=${engine?.pickerActive}" }
+        }
     }
 
     /** Runs the 20 ms tick only while the engine has timers running. */
@@ -625,9 +651,19 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     internal val modeForTest: InputMode? get() = engine?.mode
 
-    internal fun switchModeForTest(mode: InputMode) = switchMode(mode)
+    /** Switches mode as if the user had picked it, so later input restarts keep it. */
+    internal fun switchModeForTest(mode: InputMode) {
+        switchMode(mode)
+        engine?.let { if (it.mode == mode) onModeChanged(mode) }
+    }
 
     internal fun candidatesForTest(): List<String> = engine?.candidates().orEmpty()
+
+    internal val pickerActiveForTest: Boolean get() = engine?.pickerActive == true
+
+    /** End of the selection in the last onUpdateSelection report, or of the initial one. */
+    internal var selectionEndForTest = -1
+        private set
 
     /** Screen position of an on-screen key, or null while the keyboard is not shown. */
     internal fun keyCenterOnScreen(keycode: Int): PointF? = keyboardView?.keyCenterOnScreen(keycode)

@@ -2,11 +2,14 @@
 package io.github.tengigabytes.mokyaime
 
 import android.app.Instrumentation
+import android.graphics.PointF
+import android.os.Build
 import android.os.SystemClock
 import android.text.InputType
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.WindowInsets
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import androidx.test.core.app.ActivityScenario
@@ -17,6 +20,7 @@ import io.github.tengigabytes.mokyaime.engine.MokyaKeys
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
@@ -26,6 +30,9 @@ import org.junit.runner.RunWith
  * Drives the real IME on a device / emulator: enables and selects Mokya
  * IME, focuses the field in SetupActivity, then types through injected
  * hardware key events and touches on the on-screen keyboard.
+ *
+ * Every test starts once the IME serves the field and its keyboard is on
+ * screen; failures print the IME's event trace.
  */
 @RunWith(AndroidJUnit4::class)
 class ImeEndToEndTest {
@@ -34,9 +41,11 @@ class ImeEndToEndTest {
     private val imeId = "io.github.tengigabytes.mokyaime/.MokyaImeService"
     private lateinit var scenario: ActivityScenario<SetupActivity>
     private lateinit var field: EditText
+    private val trace = ArrayList<String>()   // written and read on the main thread
 
     @Before
     fun setUp() {
+        MokyaImeService.traceForTest = trace
         shell("ime enable $imeId")
         shell("ime set $imeId")
         // Keep the on-screen keyboard even if the emulator reports a hardware keyboard.
@@ -46,19 +55,30 @@ class ImeEndToEndTest {
         scenario.onActivity { activity ->
             field = activity.findViewById(R.id.try_field)
             field.requestFocus()
+        }
+        // The window may get a TYPE_NULL input start before the field's own one.
+        waitFor("IME started on the field") {
+            onMain {
+                val ime = MokyaImeService.current
+                val info = ime?.currentInputEditorInfo
+                ime != null && ime.currentInputStarted && info != null &&
+                    info.packageName == instrumentation.targetContext.packageName &&
+                    info.fieldId == R.id.try_field && info.inputType != InputType.TYPE_NULL
+            }
+        }
+        // The mode is persisted: an earlier test may have left another one.
+        onMain { MokyaImeService.current!!.switchModeForTest(InputMode.SMART_ZH) }
+        // Only a served field can request the keyboard.
+        scenario.onActivity { activity ->
             activity.getSystemService(InputMethodManager::class.java).showSoftInput(field, 0)
         }
-        waitFor("IME bound to the field") {
-            val ime = MokyaImeService.current
-            ime != null && ime.currentInputStarted &&
-                ime.currentInputEditorInfo?.packageName == instrumentation.targetContext.packageName
-        }
-        onMain { MokyaImeService.current!!.switchModeForTest(InputMode.SMART_ZH) }
+        waitForKeyboardOnScreen()
     }
 
     @After
     fun tearDown() {
         scenario.close()
+        MokyaImeService.traceForTest = null
     }
 
     // ── Hardware keyboard ────────────────────────────────────────────────
@@ -101,7 +121,11 @@ class ImeEndToEndTest {
 
     @Test
     fun externalCursorMoveDropsComposition() {
-        scenario.onActivity { field.setText("xy"); field.setSelection(2) }
+        // append, unlike setText, does not restart input. The IME must see
+        // the new cursor before we type, or its late report would itself
+        // count as an external edit.
+        scenario.onActivity { field.append("xy"); field.setSelection(2) }
+        waitFor("IME saw the cursor after xy") { onMain { MokyaImeService.current!!.selectionEndForTest } == 2 }
         keys("su")
         waitForText("xyㄋ, ㄧ")
         scenario.onActivity { field.setSelection(0) }   // the app moves the cursor
@@ -116,7 +140,6 @@ class ImeEndToEndTest {
 
     @Test
     fun touchTapsAndOk() {
-        waitForKeyboard()
         touch(MokyaKeys.KEY_A)   // ㄇㄋ
         touch(MokyaKeys.KEY_C)   // ㄏㄒ
         waitForText("ㄇㄋ, ㄏㄒ")
@@ -127,7 +150,6 @@ class ImeEndToEndTest {
 
     @Test
     fun touchLongPressPinsAndCyclesPhoneme() {
-        waitForKeyboard()
         // Long press → primary ㄆ; a second long press whose 500 ms mark
         // falls within 800 ms of the first one cycles to the secondary ㄊ.
         touch(MokyaKeys.KEY_Q, holdMs = 550)
@@ -139,8 +161,8 @@ class ImeEndToEndTest {
 
     @Test
     fun touchSym1LongPressOpensPicker() {
-        waitForKeyboard()
         touch(MokyaKeys.KEY_SYM1, holdMs = 800)
+        assertTrue("symbol picker not open\n${traceDump()}", onMain { MokyaImeService.current!!.pickerActiveForTest })
         touch(MokyaKeys.KEY_OK)                 // first cell
         waitForText("「")
     }
@@ -165,7 +187,7 @@ class ImeEndToEndTest {
             if (condition()) return
             SystemClock.sleep(50)
         }
-        fail("Timed out waiting for $what")
+        fail("Timed out waiting for $what\n${traceDump()}")
     }
 
     private fun waitForText(expected: String) {
@@ -176,14 +198,37 @@ class ImeEndToEndTest {
             if (last == expected) return
             SystemClock.sleep(50)
         }
-        assertEquals(expected, last)
+        assertEquals("field text\n${traceDump()}\n", expected, last)
     }
 
-    private fun waitForKeyboard() {
-        waitFor("on-screen keyboard") { onMain { MokyaImeService.current?.keyCenterOnScreen(MokyaKeys.KEY_OK) } != null }
+    /** The last IME events, oldest first. */
+    private fun traceDump(): String = onMain { trace.takeLast(60).joinToString("\n", prefix = "IME trace:\n") }
+
+    /**
+     * Waits until the keyboard is really on screen: the app sees the IME
+     * insets and the keys have stopped moving. A touch injected before that
+     * can land on the window behind the keyboard.
+     */
+    private fun waitForKeyboardOnScreen() {
+        var last: PointF? = null
+        var stablePolls = 0
+        waitFor("on-screen keyboard") {
+            val now = onMain { MokyaImeService.current?.keyCenterOnScreen(MokyaKeys.KEY_OK) }
+            val settled = now != null && last?.let { it.x == now.x && it.y == now.y } == true
+            stablePolls = if (settled && onMain { imeInsetsVisible() }) stablePolls + 1 else 0
+            last = now
+            stablePolls >= 5
+        }
+        instrumentation.waitForIdleSync()
+    }
+
+    private fun imeInsetsVisible(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return true
+        return field.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) == true
     }
 
     private fun key(keyCode: Int, metaState: Int = 0) {
+        onMain { MokyaImeService.trace { "test: key $keyCode meta=0x${metaState.toString(16)}" } }
         val now = SystemClock.uptimeMillis()
         instrumentation.sendKeySync(KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0, metaState))
         instrumentation.sendKeySync(KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0, metaState))
@@ -209,6 +254,7 @@ class ImeEndToEndTest {
 
     /** Touches an on-screen key at its centre for [holdMs]. */
     private fun touch(keycode: Int, holdMs: Long = 60) {
+        onMain { MokyaImeService.trace { "test: touch $keycode for $holdMs ms" } }
         val point = onMain { MokyaImeService.current?.keyCenterOnScreen(keycode) }
         assertNotNull("key $keycode not on screen", point)
         val down = SystemClock.uptimeMillis()
