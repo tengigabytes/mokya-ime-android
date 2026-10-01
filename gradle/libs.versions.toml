@@ -1,0 +1,12 @@
+[versions]
+# AGP 9 compiles Kotlin itself (built-in Kotlin); the kotlin-jvm plugin is
+# only used by the pure-JVM :mie-engine module and pins the KGP version.
+agp = "9.3.2"
+kotlin = "2.3.0"
+
+[libraries]
+kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
