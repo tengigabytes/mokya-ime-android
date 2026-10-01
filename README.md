@@ -11,16 +11,18 @@ keyboards.
 Install the app, open **Mokya IME**, enable it and switch to it (the setup
 screen has buttons for both and a field to try it in).
 
-**On-screen keyboard.** The layout follows the MokyaLora keypad: the D-pad,
-OK and ⌫ on top, then the 5×5 core input area. Each key carries two
+**On-screen keyboard.** The layout follows the MokyaLora keypad: OK and ⌫
+on top, then the 5×5 core input area. The D-pad is left out: candidates are
+tapped, and the cursor is placed by touching the text. Each key carries two
 Bopomofo symbols (ㄞㄢㄦ has three):
 
 - Tap a key to match any of its symbols. Hold it (500 ms) to pin the first
   symbol; hold again within 800 ms to cycle to the next.
 - **MODE** cycles 中 → EN → ABC. **，SYM** types ，; hold it for the symbol
   table. **。.？** cycles 。？！.
-- ▲ ▼ page through candidates, ◀ ▶ move the selection, **OK** commits it,
-  **⇥** jumps to the next page. You can also tap a candidate in the strip.
+- Tap a candidate in the strip to enter it. **‹ ›** at the ends of the strip
+  page through the candidates (a swipe scrolls it too). **OK** enters the
+  highlighted candidate, and **⇥** moves the highlight to the next page.
 
 **Hardware keyboard.**
 
@@ -60,7 +62,8 @@ mokya-ime-android/
 │   └── src/main/kotlin/.../
 │       ├── engine/               MieEngine, MieListener, MokyaKeys, MieNative
 │       └── input/                keyboard layout & labels, touch timing
-│                                 (PressTracker), HardwareKeyMapper, EditorPolicy
+│                                 (PressTracker), candidate paging (StripPaging),
+│                                 HardwareKeyMapper, EditorPolicy
 ├── licenses/                     LGPL-2.1 and CC BY-SA 4.0 texts (dictionary data)
 ├── LICENSE                       Apache License 2.0
 └── NOTICE

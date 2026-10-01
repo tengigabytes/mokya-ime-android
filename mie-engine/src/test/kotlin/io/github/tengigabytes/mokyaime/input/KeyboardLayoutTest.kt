@@ -19,6 +19,13 @@ class KeyboardLayoutTest {
     }
 
     @Test
+    fun touchKeyboardHasNoArrowKeys() {
+        assertEquals(listOf(MokyaKeys.KEY_OK, MokyaKeys.KEY_DEL), KeyboardLayout.rows.first())
+        val arrows = setOf(MokyaKeys.KEY_LEFT, MokyaKeys.KEY_RIGHT, MokyaKeys.KEY_UP, MokyaKeys.KEY_DOWN)
+        assertTrue(KeyboardLayout.rows.flatten().none { it in arrows })
+    }
+
+    @Test
     fun inputKeyLabelsFollowMode() {
         assertEquals(KeyboardLayout.Label("ㄆㄊ", "q w"), KeyboardLayout.label(MokyaKeys.KEY_Q, InputMode.SMART_ZH))
         assertEquals(KeyboardLayout.Label("q w", "ㄆㄊ"), KeyboardLayout.label(MokyaKeys.KEY_Q, InputMode.SMART_EN))
