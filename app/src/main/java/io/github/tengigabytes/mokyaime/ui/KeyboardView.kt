@@ -13,6 +13,7 @@ import android.util.TypedValue
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import io.github.tengigabytes.mokyaime.MokyaImeService
 import io.github.tengigabytes.mokyaime.R
 import io.github.tengigabytes.mokyaime.engine.InputMode
 import io.github.tengigabytes.mokyaime.input.KeyLabels
@@ -127,7 +128,9 @@ class KeyboardView @JvmOverloads constructor(
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val i = event.actionIndex
-                val key = keyAt(event.getX(i), event.getY(i)) ?: return true
+                val key = keyAt(event.getX(i), event.getY(i))
+                MokyaImeService.trace { "touch down (${event.getX(i)}, ${event.getY(i)}) key=${key?.keycode}" }
+                if (key == null) return true
                 val pointer = event.getPointerId(i)
                 pressedKeys[pointer] = key
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -140,6 +143,7 @@ class KeyboardView @JvmOverloads constructor(
                     val pointer = event.getPointerId(i)
                     val key = pressedKeys[pointer] ?: continue
                     if (!key.bounds.contains(event.getX(i), event.getY(i))) {
+                        MokyaImeService.trace { "touch slid off key=${key.keycode}" }
                         pressedKeys.remove(pointer)
                         tracker.cancel(pointer)
                         invalidate()
@@ -148,10 +152,14 @@ class KeyboardView @JvmOverloads constructor(
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val pointer = event.getPointerId(event.actionIndex)
+                MokyaImeService.trace { "touch up" }
                 if (pressedKeys.remove(pointer) != null) tracker.up(pointer)
                 invalidate()
             }
-            MotionEvent.ACTION_CANCEL -> cancelTouches()
+            MotionEvent.ACTION_CANCEL -> {
+                MokyaImeService.trace { "touch cancel" }
+                cancelTouches()
+            }
         }
         return true
     }
