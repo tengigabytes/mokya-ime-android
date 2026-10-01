@@ -78,7 +78,10 @@ mokya-ime-android/
 ```
 
 `:mie-engine` has no Android dependency, so its tests load a host build of
-the same `mie_jni.cpp` and run on any JDK.
+the same `mie_jni.cpp` and run on any JDK. That build takes `jni.h` from the
+JDK running Gradle, so `JAVA_HOME` must be a full JDK (Android Studio's
+bundled runtime has no headers). On Windows it uses Visual Studio (Build
+Tools) through CMake's default generator.
 
 ## Building and testing
 

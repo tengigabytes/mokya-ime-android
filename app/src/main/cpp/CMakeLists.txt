@@ -39,4 +39,16 @@ else()
               NO_DEFAULT_PATH REQUIRED)
     target_include_directories(mokyaime_jni PRIVATE
         "${MOKYA_JNI_INCLUDE}" "${MOKYA_JNI_MD_INCLUDE}")
+    # Multi-config generators (Visual Studio) would put the library in a
+    # Debug/ subdirectory; a generator expression keeps it where the tests
+    # look (java.library.path is the build directory).
+    set_target_properties(mokyaime_jni PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "$<1:${CMAKE_BINARY_DIR}>"
+        RUNTIME_OUTPUT_DIRECTORY "$<1:${CMAKE_BINARY_DIR}>")
+    if(MSVC)
+        # The sources and libmie's headers are UTF-8 without a BOM; MSVC
+        # would otherwise read them in the system code page. libmie sets
+        # this for its own targets only.
+        target_compile_options(mokyaime_jni PRIVATE /utf-8)
+    endif()
 endif()
