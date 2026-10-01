@@ -1,0 +1,17 @@
+# Gradle / Android Studio
+.gradle/
+build/
+.kotlin/
+.cxx/
+.externalNativeBuild/
+/local.properties
+.idea/
+*.iml
+captures/
+
+# Third-party dictionary sources downloaded by :app:generateMieDict.
+# Never commit them (see README, "Third-party data").
+/.mie-data/
+
+# The dictionary is generated into app/build; never commit a copy.
+dict_mie_v4.bin

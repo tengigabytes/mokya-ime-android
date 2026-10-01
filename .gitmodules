@@ -1,0 +1,4 @@
+[submodule "app/src/main/cpp/libmie"]
+	path = app/src/main/cpp/libmie
+	url = https://github.com/tengigabytes/libmie.git
+	branch = main
