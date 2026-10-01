@@ -122,7 +122,9 @@ jobs:
           disable-animations: true
           disk-size: 6000M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: ./gradlew :app:connectedDebugAndroidTest --stacktrace
+          # The IME's test trace (lifecycle, keys, touches) is printed for
+          # passing runs too, to diagnose intermittent failures.
+          script: ./gradlew :app:connectedDebugAndroidTest --stacktrace; status=$?; adb logcat -d -s MokyaTrace:I | tail -n 800; exit $status
 
       - name: Upload test report
         if: failure()
