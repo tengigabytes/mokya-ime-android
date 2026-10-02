@@ -162,6 +162,33 @@ class ImeEndToEndTest {
     }
 
     @Test
+    fun diagnosticsLeaveOutWhatIsTypedInPasswordFields() {
+        val context = instrumentation.targetContext
+        onMain {
+            Diagnostics.setEnabled(context, true)
+            Diagnostics.ring!!.clear()
+        }
+        try {
+            restartField(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+            waitForQwerty()
+            onMain { MokyaImeService.traceForTest = null }   // as on a device: diagnostics only
+            tapText("a")
+            tapText("b")
+            waitForText("ab")
+            val lines = onMain { Diagnostics.ring!!.lines() }
+            val dump = lines.joinToString("\n", prefix = "diagnostics:\n")
+            assertTrue(dump, lines.any { "sensitive=true" in it })
+            assertTrue(dump, lines.any { "input in a sensitive field" in it })
+            assertTrue(dump, lines.none { "touch down" in it })
+        } finally {
+            onMain {
+                MokyaImeService.traceForTest = trace
+                Diagnostics.setEnabled(context, false)
+            }
+        }
+    }
+
+    @Test
     fun phoneFieldTypesOnTheNumberRow() {
         restartField(InputType.TYPE_CLASS_PHONE)
         waitForQwerty()
