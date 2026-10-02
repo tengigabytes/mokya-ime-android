@@ -736,5 +736,7 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     internal fun shiftKeyCenterOnScreen(): PointF? = keyboardView?.shiftKeyCenterOnScreen()
 
+    internal fun pageKeyCenterOnScreen(): PointF? = keyboardView?.pageKeyCenterOnScreen()
+
     internal val okLabelForTest: String? get() = keyboardView?.okLabelForTest
 }

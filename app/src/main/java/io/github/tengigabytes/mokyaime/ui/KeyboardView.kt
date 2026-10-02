@@ -28,7 +28,7 @@ import io.github.tengigabytes.mokyaime.input.TouchKey
 /**
  * On-screen keyboard, drawn on a canvas ([KeyboardLayout.touchRows]): the
  * MokyaLora half-keyboard (OK / DEL row and the 5×5 core) in 中 and EN, and
- * QWERTY with a number row in ABC. Engine keys become MIE key edges through
+ * QWERTY with a number row in ABC, plus a symbol page. Engine keys become MIE key edges through
  * [PressTracker], which reproduces the device's long-press timing, and go to
  * [onKey]; QWERTY text goes to [onText].
  */
@@ -50,13 +50,14 @@ class KeyboardView @JvmOverloads constructor(
             val newLayout = (field == InputMode.DIRECT) != (value == InputMode.DIRECT)
             field = value
             if (newLayout) {
-                // Held keys keep their old Key objects, so their release still arrives.
-                rows = buildRows()
-                shift.reset()
-                if (width > 0) layoutKeys(width)
+                symbols = false
+                rebuild()
             }
             invalidate()
         }
+
+    /** True while ABC shows its symbol page instead of the letters. */
+    private var symbols = false
 
     /** True while something is pending: OK then commits it rather than running [idleOkLabel]. */
     var composing = false
@@ -134,14 +135,25 @@ class KeyboardView @JvmOverloads constructor(
         setBackgroundColor(context.getColor(R.color.keyboard_bg))
     }
 
-    /** Back to lower case, e.g. for a new editor. */
+    /** Back to lower-case letters, e.g. for a new editor. */
     fun resetShift() {
+        if (symbols) {
+            symbols = false
+            rebuild()
+        }
         shift.reset()
         invalidate()
     }
 
     private fun buildRows(): List<List<Key>> =
-        KeyboardLayout.touchRows(mode).map { row -> row.map { Key(it) } }
+        KeyboardLayout.touchRows(mode, symbols).map { row -> row.map { Key(it) } }
+
+    /** New keys for the current layout; held keys keep their old Key objects, so their release still arrives. */
+    private fun rebuild() {
+        rows = buildRows()
+        shift.reset()
+        if (width > 0) layoutKeys(width)
+    }
 
     /**
      * The long-press mark of a Bopomofo key: confirm it with a stronger
@@ -213,6 +225,7 @@ class KeyboardView @JvmOverloads constructor(
                 key in pressed -> colorPressed
                 keycode == MokyaKeys.KEY_OK && !composing -> colorAccent
                 spec is TouchKey.Shift && shift.active -> colorAccent
+                spec is TouchKey.Page && symbols -> colorAccent
                 spec is TouchKey.Text -> colorInput
                 keycode != null && KeyLabels.isInputKey(keycode) -> colorInput
                 else -> colorFunction
@@ -245,6 +258,7 @@ class KeyboardView @JvmOverloads constructor(
             else -> KeyboardLayout.Label(spec.normal, "")
         }
         is TouchKey.Shift -> KeyboardLayout.Label(if (shift.state == ShiftKey.State.LOCKED) "⇪" else "⇧", "")
+        is TouchKey.Page -> KeyboardLayout.Label(if (symbols) "abc" else "#+=", "")
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -257,7 +271,7 @@ class KeyboardView @JvmOverloads constructor(
                 val pointer = event.getPointerId(i)
                 pressedKeys[pointer] = key
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                // Text and Shift act on release, so sliding off cancels them.
+                // Text, Shift and the page key act on release, so sliding off cancels them.
                 (key.spec as? TouchKey.Engine)?.let {
                     tracker.down(pointer, it.keycode, KeyboardLayout.defersPress(it.keycode, mode))
                 }
@@ -286,6 +300,11 @@ class KeyboardView @JvmOverloads constructor(
                         shift.typed()
                     }
                     is TouchKey.Shift -> shift.tap(event.eventTime)
+                    is TouchKey.Page -> {
+                        symbols = !symbols
+                        MokyaImeService.trace { "ABC page: ${if (symbols) "symbols" else "letters"}" }
+                        rebuild()
+                    }
                     null -> Unit
                 }
                 invalidate()
@@ -322,6 +341,8 @@ class KeyboardView @JvmOverloads constructor(
         centerOnScreen { (it as? TouchKey.Text)?.normal == normal }
 
     internal fun shiftKeyCenterOnScreen(): PointF? = centerOnScreen { it is TouchKey.Shift }
+
+    internal fun pageKeyCenterOnScreen(): PointF? = centerOnScreen { it is TouchKey.Page }
 
     /** The label OK shows right now. */
     internal val okLabelForTest: String get() = if (composing) "OK" else idleOkLabel

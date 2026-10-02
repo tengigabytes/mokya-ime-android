@@ -162,6 +162,22 @@ class ImeEndToEndTest {
     }
 
     @Test
+    fun abcSymbolPageTypesBracketsAndReturns() {
+        restartField(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        waitForQwerty()
+        tapText("a")
+        tapPage()
+        waitFor("symbol page") { onMain { MokyaImeService.current!!.textKeyCenterOnScreen("[") != null } }
+        tapText("[")
+        tapText("=")
+        tapText("]")
+        tapPage()
+        waitForQwerty()
+        tapText("b")
+        waitForText("a[=]b")
+    }
+
+    @Test
     fun phoneFieldTypesOnTheNumberRow() {
         restartField(InputType.TYPE_CLASS_PHONE)
         waitForQwerty()
@@ -336,6 +352,12 @@ class ImeEndToEndTest {
     private fun tapShift() {
         val point = onMain { MokyaImeService.current?.shiftKeyCenterOnScreen() }
         assertNotNull("Shift not on screen", point)
+        tapAt(point!!)
+    }
+
+    private fun tapPage() {
+        val point = onMain { MokyaImeService.current?.pageKeyCenterOnScreen() }
+        assertNotNull("page key not on screen", point)
         tapAt(point!!)
     }
 
