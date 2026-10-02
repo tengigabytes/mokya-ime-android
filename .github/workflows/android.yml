@@ -55,6 +55,19 @@ jobs:
           path: .mie-data
           key: mie-data-${{ hashFiles('app/src/main/cpp/libmie/tools/fetch_data.py') }}
 
+      # The fixed debug key (app/build.gradle.kts), so a newer build installs
+      # over an older one. Absent for forks: their builds use a fresh key.
+      - name: Restore debug keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.MOKYA_DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/debug.keystore"
+            echo "MOKYA_DEBUG_KEYSTORE=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
+          else
+            echo "::notice::MOKYA_DEBUG_KEYSTORE_B64 not set: the APK is signed with a fresh debug key"
+          fi
+
       - name: Build
         run: ./gradlew :app:assembleDebug --stacktrace
 
@@ -73,8 +86,7 @@ jobs:
               || { echo "::error::missing assets/licenses/$f"; exit 1; }
           done
 
-      # For trying builds on a device. Signed with the runner's fresh debug
-      # key, so a newer build only installs after uninstalling the old one.
+      # For trying builds on a device; see "Restore debug keystore".
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -83,10 +95,20 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # API 34 is the last release before the IME window became edge to edge
+  # (Android 15, API 35); API 36 covers the edge-to-edge layout.
   emulator-tests:
-    name: End-to-end tests (emulator, API 34)
+    name: End-to-end tests (emulator, API ${{ matrix.api-level }})
     runs-on: ubuntu-24.04
     timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api-level: 34
+            target: default
+          - api-level: 36
+            target: google_apis
     steps:
       - name: Enable KVM
         run: |
@@ -116,9 +138,9 @@ jobs:
       - name: Run instrumentation tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          api-level: ${{ matrix.api-level }}
           arch: x86_64
-          target: default
+          target: ${{ matrix.target }}
           disable-animations: true
           disk-size: 6000M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
@@ -130,5 +152,5 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: emulator-test-report
+          name: emulator-test-report-api${{ matrix.api-level }}
           path: app/build/reports/androidTests/connected
