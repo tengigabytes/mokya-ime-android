@@ -13,4 +13,7 @@ sealed interface TouchKey {
 
     /** Shift for the [Text] keys ([ShiftKey]). */
     data class Shift(override val weight: Float) : TouchKey
+
+    /** Switches ABC between its letter and symbol pages. */
+    data class Page(override val weight: Float = 1f) : TouchKey
 }

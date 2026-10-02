@@ -29,8 +29,9 @@ Bopomofo symbols (ㄞㄢㄦ has three):
   composing it reads **OK** and only commits.
 - **ABC** shows QWERTY with a number row instead of multi-tap. **⇧** shifts
   the next character (capitals, and the symbols ! @ # … on the number row);
-  tap it twice to lock. Number, phone, password, e-mail and URL fields
-  start in ABC.
+  tap it twice to lock. **#+=** opens a page with every symbol
+  (= + [ ] { } \ | ~ < > ' " ` …); **abc** goes back. Number, phone,
+  password, e-mail and URL fields start in ABC.
 
 **Hardware keyboard.**
 

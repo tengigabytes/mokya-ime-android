@@ -30,35 +30,59 @@ object KeyboardLayout {
     /** The MokyaLora half-keyboard: OK / DEL, then the 5×5 core. */
     val rows: List<List<Int>> = listOf(actionRow) + coreRows
 
+    /** Bottom row of both ABC pages; the page key switches between them. */
+    private val bottomRow: List<TouchKey> = listOf(
+        TouchKey.Engine(MokyaKeys.KEY_MODE, 1.5f),
+        TouchKey.Page(),
+        TouchKey.Text("/", "?"),
+        TouchKey.Text(",", ";"),
+        TouchKey.Text(" ", " ", 2.5f),
+        TouchKey.Text(".", ":"),
+        TouchKey.Engine(MokyaKeys.KEY_OK, 2f),
+    )
+
     /**
      * ABC on the touch screen: QWERTY with a number row, where MokyaLora's
      * keypad uses multi-tap. Shift gives capitals and, on the number row and
      * the punctuation keys, the symbols of a US keyboard. Every row is
      * [ROW_UNITS] key units wide. Number and phone fields get this layout
-     * too (ABC is their required mode).
+     * too (ABC is their required mode). The page key (#+=) opens
+     * [symbolRows].
      */
     val qwertyRows: List<List<TouchKey>> = listOf(
         "1234567890".zip("!@#$%^&*()").map { (n, s) -> TouchKey.Text("$n", "$s") },
         "qwertyuiop".map(::letter),
         "asdfghjkl".map(::letter) + TouchKey.Text("-", "_"),
         listOf(TouchKey.Shift(1.5f)) + "zxcvbnm".map(::letter) + TouchKey.Engine(MokyaKeys.KEY_DEL, 1.5f),
-        listOf(
-            TouchKey.Engine(MokyaKeys.KEY_MODE, 1.5f),
-            TouchKey.Text("/", "?"),
-            TouchKey.Text(",", ";"),
-            TouchKey.Text(" ", " ", 3f),
-            TouchKey.Text(".", ":"),
-            TouchKey.Engine(MokyaKeys.KEY_OK, 2.5f),
-        ),
+        bottomRow,
+    )
+
+    /**
+     * ABC's symbol page: the digits, then every ASCII symbol, so the ones
+     * the letter page lacks (= + [ ] { } \ | ~ < > ' " `) need no Shift.
+     * The bottom row is the letter page's, with the page key back to it.
+     */
+    val symbolRows: List<List<TouchKey>> = listOf(
+        "1234567890".map(::symbol),
+        "!@#$%^&*()".map(::symbol),
+        "[]{}<>=+\\|".map(::symbol),
+        "?'\"~`_;:".map(::symbol) + TouchKey.Engine(MokyaKeys.KEY_DEL, 2f),
+        bottomRow,
     )
 
     const val ROW_UNITS = 10f
 
-    /** The on-screen rows for [mode]. */
-    fun touchRows(mode: InputMode): List<List<TouchKey>> =
-        if (mode == InputMode.DIRECT) qwertyRows else rows.map { row -> row.map { TouchKey.Engine(it) } }
+    /** The on-screen rows for [mode]; [symbols] picks ABC's symbol page. */
+    fun touchRows(mode: InputMode, symbols: Boolean = false): List<List<TouchKey>> = when {
+        mode != InputMode.DIRECT -> rows.map { row -> row.map { TouchKey.Engine(it) } }
+        symbols -> symbolRows
+        else -> qwertyRows
+    }
 
     private fun letter(c: Char) = TouchKey.Text("$c", "${c.uppercaseChar()}")
+
+    /** The symbol page has no Shift: a key types the same either way. */
+    private fun symbol(c: Char) = TouchKey.Text("$c", "$c")
 
     /** Text drawn on a key: [main] large in the centre, [hint] small above it. */
     data class Label(val main: String, val hint: String)

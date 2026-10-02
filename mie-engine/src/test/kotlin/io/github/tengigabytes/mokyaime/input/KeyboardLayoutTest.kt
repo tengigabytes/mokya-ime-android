@@ -38,7 +38,35 @@ class KeyboardLayoutTest {
         val engineKeys = rows.flatten().filterIsInstance<TouchKey.Engine>().map { it.keycode }.toSet()
         assertEquals(setOf(MokyaKeys.KEY_DEL, MokyaKeys.KEY_OK, MokyaKeys.KEY_MODE), engineKeys)
         assertEquals(1, rows.flatten().count { it is TouchKey.Shift })
+        assertEquals(1, rows.flatten().count { it is TouchKey.Page })
         assertTrue(texts.any { it.normal == " " })
+    }
+
+    @Test
+    fun abcSymbolPageHasEveryAsciiSymbol() {
+        val rows = KeyboardLayout.touchRows(InputMode.DIRECT, symbols = true)
+        assertEquals(KeyboardLayout.qwertyRows.size, rows.size)   // same height, same row heights
+        rows.forEach { row -> assertEquals(KeyboardLayout.ROW_UNITS, row.sumOf { it.weight.toDouble() }.toFloat()) }
+        val texts = rows.flatten().filterIsInstance<TouchKey.Text>()
+        val typed = texts.flatMap { listOf(it.normal, it.shifted) }.toSet()
+        val printable = (' '..'~').filterNot { it.isLetterOrDigit() || it == '-' }.map { "$it" }
+        assertEquals(emptyList(), printable.filterNot { it in typed })
+        assertTrue(('0'..'9').all { "$it" in typed })
+        // No Shift on this page, so a key must not depend on it.
+        assertTrue(rows.flatten().none { it is TouchKey.Shift })
+        texts.filter { it.normal.length == 1 && it.normal != " " && it.normal !in "/,." }
+            .forEach { assertEquals(it.normal, it.shifted) }
+        // The bottom row, page key included, does not move between pages.
+        assertEquals(KeyboardLayout.qwertyRows.last(), rows.last())
+        assertTrue(rows.last().any { it is TouchKey.Page })
+        assertTrue(rows.flatten().any { it == TouchKey.Engine(MokyaKeys.KEY_DEL, 2f) })
+    }
+
+    @Test
+    fun symbolPageOnlyInAbc() {
+        for (mode in listOf(InputMode.SMART_ZH, InputMode.SMART_EN)) {
+            assertEquals(KeyboardLayout.touchRows(mode), KeyboardLayout.touchRows(mode, symbols = true))
+        }
     }
 
     @Test
