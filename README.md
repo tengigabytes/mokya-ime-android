@@ -117,10 +117,15 @@ CI (`.github/workflows/android.yml`) runs on every push and pull request:
 - `assembleDebug`, plus checks that the dictionary is stored uncompressed,
   the JNI library exists for every ABI and the licence texts are packaged.
   The debug APK is kept for 30 days as the run's `mokya-ime-debug-<commit>`
-  artifact. Each run signs it with a new debug key, so uninstall the
-  previous build before installing a newer one;
-- the end-to-end tests on an API 34 emulator. These type through injected
-  hardware keys and touches on the on-screen keyboard.
+  artifact. It is signed with a fixed debug key, restored from the
+  `MOKYA_DEBUG_KEYSTORE_B64` secret (base64 of a keystore with the SDK's
+  debug passwords and alias), so a newer build installs over an older one
+  and keeps the learned words. Without the secret (forks) each run uses a
+  new key. Locally, `-Pmokya.debugKeystore=/path/to/keystore` (or the
+  `MOKYA_DEBUG_KEYSTORE` environment variable) signs with the same key;
+- the end-to-end tests on API 34 and API 36 emulators (API 35 made the IME
+  window edge to edge). These type through injected hardware keys and
+  touches on the on-screen keyboard.
 
 ## How the service drives the engine
 
