@@ -36,6 +36,19 @@ android {
         noCompress += "bin"
     }
 
+    // A fixed debug key, so a newer debug build installs over an older one
+    // and keeps its learned words. CI restores it from a secret into the
+    // file named by MOKYA_DEBUG_KEYSTORE (or -Pmokya.debugKeystore); it uses
+    // the SDK's debug key passwords and alias. Without it (local builds,
+    // forks) the SDK's own debug key is used.
+    signingConfigs {
+        getByName("debug") {
+            providers.gradleProperty("mokya.debugKeystore")
+                .orElse(providers.environmentVariable("MOKYA_DEBUG_KEYSTORE"))
+                .orNull?.let { storeFile = file(it) }
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

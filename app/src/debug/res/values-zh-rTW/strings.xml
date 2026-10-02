@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <string name="ft_app_name">Mokya 實機測試</string>
+    <string name="ft_report_title">Mokya 輸入法實機測試</string>
+    <string name="ft_intro">在真實 App 裡使用 Mokya 輸入法時，把結果記在這裡。結果會留在手機上，直到你重設清單。開啟診斷紀錄後，鍵盤會記錄它的事件（按鍵、觸控、版面；不記錄文字內容，在密碼欄位和無痕模式中完全不記錄），報告就能看出當時發生了什麼。測完之後分享或儲存報告；最近一份報告也會留給 adb 讀取：\nadb shell run-as io.github.tengigabytes.mokyaime cat files/fieldtest/report.md</string>
+    <string name="ft_diagnostics">診斷紀錄</string>
+    <string name="ft_diagnostics_off">已關閉：不會記錄任何事件。</string>
+    <string name="ft_diagnostics_status">保留 %1$d 行；清除後共記錄 %2$d 行。</string>
+    <string name="ft_section_progress">%1$s（%2$d/%3$d）</string>
+    <string name="ft_share">分享報告</string>
+    <string name="ft_save">儲存報告…</string>
+    <string name="ft_clear_trace">清除紀錄</string>
+    <string name="ft_reset">重設清單</string>
+    <string name="ft_reset_confirm">要清除所有結果和備註嗎？</string>
+    <string name="ft_saved">報告已儲存。</string>
+    <string name="ft_save_failed">無法儲存報告。</string>
+    <string name="ft_note_hint">備註：App、欄位、操作步驟…</string>
+
+    <string name="ft_environment">測試環境</string>
+    <string name="ft_summary">摘要</string>
+    <string name="ft_results">結果</string>
+    <string name="ft_counters">診斷計數</string>
+    <string name="ft_trace">診斷紀錄</string>
+    <string name="ft_section">項目</string>
+    <string name="ft_answered">已作答</string>
+    <string name="ft_pass">通過</string>
+    <string name="ft_fail">失敗</string>
+    <string name="ft_skip">略過</string>
+    <string name="ft_average">平均</string>
+    <string name="ft_not_tested">未測</string>
+    <string name="ft_trace_off">診斷紀錄未開啟。</string>
+    <string name="ft_rating_hint">1 = 很差，5 = 很好</string>
+
+    <string name="ft_section_layout">1. 顯示與版面</string>
+    <string name="ft_section_apps">2. 在真實 App 裡打字</string>
+    <string name="ft_section_touch">3. 觸控中文輸入的手感</string>
+    <string name="ft_section_english">4. 英文與 ABC 模式</string>
+    <string name="ft_section_hardware">5. 實體鍵盤</string>
+    <string name="ft_section_learning">6. 學習與隱私</string>
+    <string name="ft_section_stability">7. 穩定性與效能</string>
+    <string name="ft_section_ergonomics">8. 人因觀察（1–5 分）</string>
+    <string name="ft_section_accessibility">9. 無障礙（已知限制）</string>
+
+    <string-array name="ft_items_layout">
+        <item>layout.strip_switch_app|切換 App 之後候選列仍會出現</item>
+        <item>layout.strip_rotate|旋轉螢幕之後候選列仍會出現</item>
+        <item>layout.strip_unlock|鎖屏再解鎖之後候選列仍會出現</item>
+        <item>layout.bottom_gesture|手勢導覽：最下排按鍵沒有被手勢列蓋住</item>
+        <item>layout.bottom_buttons|三鍵導覽：最下排按鍵沒有被導覽列蓋住</item>
+        <item>layout.field_visible|候選列沒有擋到正在輸入的文字框（例如聊天 App 底部的輸入框）</item>
+        <item>layout.dark|深色模式版面正常</item>
+        <item>layout.landscape|橫向版面正常</item>
+        <item>layout.large_text|系統字型與顯示大小調大之後版面正常</item>
+    </string-array>
+
+    <string-array name="ft_items_apps">
+        <item>apps.line|在 LINE 打字</item>
+        <item>apps.messenger|在 Messenger 打字</item>
+        <item>apps.gmail|在 Gmail 打字</item>
+        <item>apps.chrome_url|在 Chrome 網址列打字</item>
+        <item>apps.google_search|在 Google 搜尋打字</item>
+        <item>apps.notes|在備忘錄打字</item>
+        <item>apps.ok_action|OK 沒組字時顯示正確動作（「送出」「搜尋」等）</item>
+        <item>apps.ok_no_double_send|選完字之後多按一下 OK，不會誤送出訊息</item>
+        <item>apps.tap_away|組字中直接點文字框其他位置，未完成的注音乾淨消失，游標停在點的地方</item>
+        <item>apps.replace_selection|先選取一段文字再打字，會取代選取內容</item>
+        <item>apps.insert_middle|在文字中間插入</item>
+        <item>apps.web_forms|網頁表單、Chrome 的文字框行為正常</item>
+    </string-array>
+
+    <string-array name="ft_items_touch">
+        <item>touch.fuzzy_first_page|輕點的模糊比對，常用詞在第一頁</item>
+        <item>touch.long_press_feedback|長按 0.5 秒時有震動、按鍵變琥珀色</item>
+        <item>touch.long_press_timing|0.5 秒的長按時間剛好（備註：太長或太短）</item>
+        <item>touch.long_press_cycle|再長按一次換第二個音，好操作</item>
+        <item>touch.tap_candidate|點候選字可以輸入</item>
+        <item>touch.page|‹ › 可以翻頁</item>
+        <item>touch.del_repeat|⌫ 按住連續刪除</item>
+        <item>touch.sym1|，SYM 短按打逗號、長按開符號表</item>
+        <item>touch.sym2|。？！ 連按切換</item>
+    </string-array>
+
+    <string-array name="ft_items_english">
+        <item>en.prediction|EN 模式的半鍵盤英文預測</item>
+        <item>abc.shift|ABC：⇧ 點一下大寫一個字、點兩下鎖定</item>
+        <item>abc.number_row|ABC：數字列與 ⇧ 符號</item>
+        <item>abc.symbol_page|ABC：#+= 符號頁</item>
+        <item>abc.auto_fields|密碼、Email、網址、電話、數字欄位自動切到 ABC</item>
+    </string-array>
+
+    <string-array name="ft_items_hardware">
+        <item>hw.dachen|大千注音打字</item>
+        <item>hw.space_tone|空白鍵打一聲</item>
+        <item>hw.enter_select|Enter 選字</item>
+        <item>hw.arrows_tab|方向鍵與 Tab 選字</item>
+        <item>hw.esc|Esc 取消</item>
+        <item>hw.ctrl_space|Ctrl+Space 切換模式</item>
+        <item>hw.shift_punct|Shift 打全形標點</item>
+        <item>hw.numpad|數字鍵盤</item>
+        <item>hw.onscreen_setting|接上實體鍵盤時，螢幕鍵盤依系統「顯示螢幕小鍵盤」設定出現或隱藏</item>
+    </string-array>
+
+    <string-array name="ft_items_learning">
+        <item>learn.promote|常用詞會往前排</item>
+        <item>learn.after_restart|重開 App 之後還在</item>
+        <item>learn.after_reboot|重新開機之後還在</item>
+        <item>learn.password|密碼欄位打的字不會被記住</item>
+        <item>learn.incognito|Chrome 無痕模式打的字不會被記住</item>
+    </string-array>
+
+    <string-array name="ft_items_stability">
+        <item>perf.first_show|第一次叫出鍵盤要等多久（備註寫秒數）</item>
+        <item>perf.typing_lag|打字沒有延遲</item>
+        <item>stab.rotate_composing|組字中旋轉螢幕</item>
+        <item>stab.switch_app_composing|組字中切換 App</item>
+        <item>stab.split_screen|分割畫面</item>
+        <item>stab.switch_ime|切換到別的輸入法再切回來</item>
+        <item>perf.battery|用一陣子之後的耗電</item>
+    </string-array>
+
+    <string-array name="ft_items_ergonomics">
+        <item>ergo.one_hand_top_row|單手操作時，最上排的 OK 和 ⌫ 好不好按</item>
+        <item>ergo.key_size|按鍵大小、字的清晰度</item>
+        <item>ergo.haptics|震動強度</item>
+        <item>ergo.height|鍵盤高度（會不會遮住太多內容）</item>
+        <item>ergo.vs_gboard|和 Gboard 注音相比（備註哪裡比較順、哪裡比較卡）</item>
+    </string-array>
+
+    <string-array name="ft_items_accessibility">
+        <item>a11y.talkback|已知：目前不支援 TalkBack</item>
+        <item>a11y.long_press_setting|已知：系統的「觸控並按住的延遲」設定不會影響我們的長按</item>
+    </string-array>
+</resources>

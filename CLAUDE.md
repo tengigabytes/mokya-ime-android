@@ -45,6 +45,14 @@ InputConnection mapping.
   JVM tests.
 - UI strings live in `values/strings.xml` (English) and
   `values-zh-rTW/strings.xml`; code comments and docs are in English.
+- The field-test page lives in the `debug` source set (`app/src/debug`,
+  its own strings too); its checklist entries are `id|label`, ids
+  identical in every language (`FieldTestStringsSyncTest`). The IME side
+  (`Diagnostics`, `MokyaImeService.trace`) is in `main` but records
+  nothing unless switched on.
+- Trace events that tell what is typed (keys, touch positions) go through
+  `MokyaImeService.traceInput`, which keeps them out of the diagnostics in
+  password and no-learning fields. Never trace the text itself.
 
 ## Build and test
 

@@ -266,7 +266,7 @@ class KeyboardView @JvmOverloads constructor(
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val i = event.actionIndex
                 val key = keyAt(event.getX(i), event.getY(i))
-                MokyaImeService.trace { "touch down (${event.getX(i)}, ${event.getY(i)}) key=${key?.spec}" }
+                MokyaImeService.traceInput { "touch down (${event.getX(i)}, ${event.getY(i)}) key=${key?.spec}" }
                 if (key == null) return true
                 val pointer = event.getPointerId(i)
                 pressedKeys[pointer] = key
@@ -283,7 +283,7 @@ class KeyboardView @JvmOverloads constructor(
                     val pointer = event.getPointerId(i)
                     val key = pressedKeys[pointer] ?: continue
                     if (!key.bounds.contains(event.getX(i), event.getY(i))) {
-                        MokyaImeService.trace { "touch slid off key=${key.spec}" }
+                        MokyaImeService.traceInput { "touch slid off key=${key.spec}" }
                         pressedKeys.remove(pointer)
                         if (key.spec is TouchKey.Engine) tracker.cancel(pointer)
                         invalidate()

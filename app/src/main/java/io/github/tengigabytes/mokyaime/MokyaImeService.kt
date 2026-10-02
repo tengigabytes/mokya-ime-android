@@ -2,6 +2,7 @@
 package io.github.tengigabytes.mokyaime
 
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.graphics.PointF
 import android.graphics.Typeface
 import android.inputmethodservice.InputMethodService
@@ -84,15 +85,39 @@ class MokyaImeService : InputMethodService(), MieListener {
         @Volatile
         internal var traceForTest: MutableList<String>? = null
 
+        /** True while a test or the device [Diagnostics] record the trace. */
+        internal val tracing: Boolean get() = traceForTest != null || Diagnostics.ring != null
+
         /**
-         * Records an event for [traceForTest], and in logcat (tag MokyaTrace)
-         * so CI can print the trace of passing runs too; main thread only.
+         * True while the editor must not learn from what is typed (passwords,
+         * incognito): [traceInput] then keeps keys out of the diagnostics.
+         */
+        @Volatile
+        internal var sensitiveInput = false
+
+        /**
+         * Records an event for [traceForTest] and the device [Diagnostics],
+         * and in logcat (tag MokyaTrace) so CI can print the trace of passing
+         * runs too; main thread only.
          */
         internal inline fun trace(event: () -> String) {
-            val trace = traceForTest ?: return
+            val test = traceForTest
+            val ring = Diagnostics.ring
+            if (test == null && ring == null) return
             val line = "${SystemClock.uptimeMillis()} ${event()}"
-            trace.add(line)
+            test?.add(line)
+            ring?.add(line)
             Log.i("MokyaTrace", line)
+        }
+
+        /**
+         * As [trace], for events that tell what is typed (keys, touch
+         * positions). In a [sensitiveInput] field the device diagnostics get
+         * a placeholder instead; tests, which type into their own field, get
+         * the event.
+         */
+        internal inline fun traceInput(event: () -> String) {
+            if (sensitiveInput && traceForTest == null) trace { "input in a sensitive field (not recorded)" } else trace(event)
         }
     }
 
@@ -149,6 +174,7 @@ class MokyaImeService : InputMethodService(), MieListener {
         current = this
         lruStore = LruStore(File(filesDir, LRU_FILE_NAME))
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+        Diagnostics.init(this)
         userMode = InputMode.entries.getOrElse(prefs.getInt(PREF_MODE, 0)) { InputMode.SMART_ZH }
         engine = try {
             MieEngine.create(DictionaryAsset.map(assets), this)
@@ -205,7 +231,7 @@ class MokyaImeService : InputMethodService(), MieListener {
         // end above it, so it never covers the field being typed into. (The
         // strip alone, for a hardware keyboard, still floats over the app.)
         if (isInputViewShown) outInsets.contentTopInsets = outInsets.visibleTopInsets
-        if (traceForTest != null) {   // test diagnostics: where the IME accepts touches
+        if (tracing) {   // diagnostics: where the IME accepts touches
             val now = "insets content=${outInsets.contentTopInsets} visible=${outInsets.visibleTopInsets} " +
                 "touchable=${outInsets.touchableInsets} region=${outInsets.touchableRegion.bounds}"
             if (now != lastInsetsTrace) {
@@ -217,9 +243,11 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     override fun onStartInput(attribute: EditorInfo, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
+        sensitiveInput = EditorPolicy.forbidsLearning(attribute.inputType, attribute.imeOptions)
         trace {
-            "startInput restarting=$restarting field=${attribute.fieldId} type=0x${attribute.inputType.toString(16)} " +
-                "sel=${attribute.initialSelStart}..${attribute.initialSelEnd}"
+            "startInput restarting=$restarting pkg=${attribute.packageName} field=${attribute.fieldId} " +
+                "type=0x${attribute.inputType.toString(16)} options=0x${attribute.imeOptions.toString(16)} " +
+                "sensitive=$sensitiveInput sel=${attribute.initialSelStart}..${attribute.initialSelEnd}"
         }
         // Only matters when input restarts in the same editor: a new editor
         // starts with an empty engine (onFinishInput aborted it).
@@ -231,7 +259,7 @@ class MokyaImeService : InputMethodService(), MieListener {
         val required = EditorPolicy.requiredMode(attribute.inputType)
         editorForcesMode = required != null
         switchMode(required ?: userMode)
-        lruSnapshot = if (EditorPolicy.forbidsLearning(attribute.inputType, attribute.imeOptions)) {
+        lruSnapshot = if (sensitiveInput) {
             engine?.serializeLru()
         } else {
             null
@@ -260,7 +288,22 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     override fun onWindowShown() {
         super.onWindowShown()
+        trace { "windowShown" }
         refreshUi()
+    }
+
+    override fun onWindowHidden() {
+        trace { "windowHidden" }
+        super.onWindowHidden()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        trace {
+            val night = (newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            "configuration orientation=${newConfig.orientation} night=$night fontScale=${newConfig.fontScale} " +
+                "screen=${newConfig.screenWidthDp}x${newConfig.screenHeightDp}dp hardKeyboardHidden=${newConfig.hardKeyboardHidden}"
+        }
+        super.onConfigurationChanged(newConfig)
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
@@ -278,6 +321,7 @@ class MokyaImeService : InputMethodService(), MieListener {
         saveLru()
         resetTracking(-1, -1)
         consumedKeyDowns.clear()
+        sensitiveInput = false
         super.onFinishInput()
     }
 
@@ -299,7 +343,7 @@ class MokyaImeService : InputMethodService(), MieListener {
         eventTimeMs: Long = SystemClock.uptimeMillis(),
     ) {
         val e = engine ?: return
-        trace { "key $keycode pressed=$pressed flags=$flags" }
+        traceInput { "key $keycode pressed=$pressed flags=$flags" }
         if ((keycode == MokyaKeys.KEY_UP || keycode == MokyaKeys.KEY_DOWN) && !e.pickerActive) {
             val count = e.candidates().size
             if (count > 0) {
