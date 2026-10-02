@@ -61,7 +61,9 @@ mokya-ime-android/
 │       │   ├── SetupActivity.kt     launcher + IME settings, try-it field
 │       │   ├── LicensesActivity.kt  NOTICE and licence texts
 │       │   ├── DictionaryAsset.kt   memory-maps the dictionary asset
-│       │   └── LruStore.kt          LRU persistence (filesDir/mie_lru.bin)
+│       │   ├── LruStore.kt          LRU persistence (filesDir/mie_lru.bin)
+│       │   └── Diagnostics.kt       on-device trace for field tests
+│       ├── debug/                field-test page (debug builds only)
 │       ├── main/cpp/
 │       │   ├── mie_jni.cpp       JNI bridge (RegisterNatives, IImeListener)
 │       │   └── libmie/           git submodule → tengigabytes/libmie
@@ -69,9 +71,10 @@ mokya-ime-android/
 ├── mie-engine/                   pure-JVM Kotlin (:mie-engine)
 │   └── src/main/kotlin/.../
 │       ├── engine/               MieEngine, MieListener, MokyaKeys, MieNative
-│       └── input/                keyboard layout & labels, touch timing
-│                                 (PressTracker), candidate paging (StripPaging),
-│                                 HardwareKeyMapper, EditorPolicy
+│       ├── input/                keyboard layout & labels, touch timing
+│       │                         (PressTracker), candidate paging (StripPaging),
+│       │                         HardwareKeyMapper, EditorPolicy
+│       └── fieldtest/            field-test checklist, report, trace ring
 ├── licenses/                     LGPL-2.1 and CC BY-SA 4.0 texts (dictionary data)
 ├── LICENSE                       Apache License 2.0
 └── NOTICE
@@ -121,6 +124,28 @@ CI (`.github/workflows/android.yml`) runs on every push and pull request:
   previous build before installing a newer one;
 - the end-to-end tests on an API 34 emulator. These type through injected
   hardware keys and touches on the on-screen keyboard.
+
+## Testing on a device
+
+Debug builds add a second launcher entry, **Mokya field test**, for
+testing in real apps:
+
+- **Checklist.** The device test plan by section, each item answered
+  pass / fail / skip (ergonomics: rated 1–5) with a note. Answers stay on
+  the phone until reset. The items are string arrays in
+  `app/src/debug/res/values*/strings.xml`, written `id|label`;
+  `FieldTestStringsSyncTest` checks that every language has the same ids.
+- **Diagnostics log.** Off by default. When on, the keyboard keeps its
+  trace (lifecycle, keys, touches, insets, configuration changes; never
+  the text) in memory and in logcat (`adb logcat -s MokyaTrace`), and
+  counts notable events, such as the candidate strip's container having
+  to be made visible. In password and no-learning (incognito) fields keys
+  and touches are not recorded.
+- **Environment.** Device, Android version, display and font scale,
+  navigation mode, long-press timeout, hardware keyboard and IME settings.
+- **Report.** Markdown with all of the above, to share or save. The last
+  one is also kept for adb:
+  `adb shell run-as io.github.tengigabytes.mokyaime cat files/fieldtest/report.md`.
 
 ## How the service drives the engine
 
