@@ -244,6 +244,13 @@ class KeyboardView @JvmOverloads constructor(
             MokyaImeService.trace { "keyboard bottom inset $bottomInset -> $bottom" }
             bottomInset = bottom
             requestLayout()
+            // When the keyboard joins a window that is already up (the strip
+            // was showing), the insets arrive after that pass has settled the
+            // window's height: the view is then measured taller than the room
+            // it gets, and its inset ends up below the screen, the bottom row
+            // under the navigation bar. Ask again once the pass is over, so
+            // the window is sized anew.
+            post { requestLayout() }
         }
         return insets
     }
