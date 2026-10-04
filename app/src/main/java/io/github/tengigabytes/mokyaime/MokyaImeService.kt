@@ -770,12 +770,33 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     private fun saveLru() {
         val e = engine ?: return
+        if (lruHeldForTest != null) return   // what a test types is not the user's
         lruStore.save(e.serializeLru())
     }
 
     // ── Test hooks (instrumentation tests run in this process) ───────────
 
     internal val modeForTest: InputMode? get() = engine?.mode
+
+    /** The user's learned words, set aside while a test types ([useEmptyLruForTest]). */
+    private var lruHeldForTest: ByteArray? = null
+
+    /**
+     * With [empty], the engine forgets what it learned, so a test sees the
+     * dictionary's own candidate order whatever was typed before; nothing is
+     * saved meanwhile. Without, what was learned before comes back, and
+     * what the test taught is gone.
+     */
+    internal fun useEmptyLruForTest(empty: Boolean) {
+        val e = engine ?: return
+        if (empty) {
+            if (lruHeldForTest == null) lruHeldForTest = e.serializeLru()
+            e.clearLru()
+        } else {
+            lruHeldForTest?.let { e.loadLru(it) }
+            lruHeldForTest = null
+        }
+    }
 
     /** Switches mode as if the user had picked it, so later input restarts keep it. */
     internal fun switchModeForTest(mode: InputMode) {

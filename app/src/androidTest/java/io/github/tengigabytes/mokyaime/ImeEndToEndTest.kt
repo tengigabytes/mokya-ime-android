@@ -33,7 +33,8 @@ import org.junit.runner.RunWith
  * hardware key events and touches on the on-screen keyboard.
  *
  * Every test starts once the IME serves the field and its keyboard is on
- * screen; failures print the IME's event trace.
+ * screen, with nothing learned; what the device had learned is put back
+ * afterwards. Failures print the IME's event trace.
  */
 @RunWith(AndroidJUnit4::class)
 class ImeEndToEndTest {
@@ -69,6 +70,9 @@ class ImeEndToEndTest {
         }
         // The mode is persisted: an earlier test may have left another one.
         onMain { MokyaImeService.current!!.switchModeForTest(InputMode.SMART_ZH) }
+        // So are the learned words, which reorder the candidates: type with
+        // none, and leave those of the device as they were.
+        onMain { MokyaImeService.current!!.useEmptyLruForTest(true) }
         // Only a served field can request the keyboard.
         scenario.onActivity { activity ->
             activity.getSystemService(InputMethodManager::class.java).showSoftInput(field, 0)
@@ -78,6 +82,7 @@ class ImeEndToEndTest {
 
     @After
     fun tearDown() {
+        onMain { MokyaImeService.current?.useEmptyLruForTest(false) }
         scenario.close()
         MokyaImeService.traceForTest = null
     }
