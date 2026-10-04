@@ -5,8 +5,9 @@ import io.github.tengigabytes.mokyaime.engine.MieEngine
 
 /**
  * Up / Down on the candidate list. The engine leaves these keys to the view
- * layer (ImeLogic::handle_dpad), which knows its own layout; the Android
- * strip is a single row, so Up / Down move by one engine page.
+ * layer (ImeLogic::handle_dpad), which knows its own layout. The Android
+ * strip is a single row unless it is opened into rows, and those depend on
+ * the candidates' widths, so Up / Down move by one engine page either way.
  */
 object CandidateNavigation {
     fun pageJump(selected: Int, count: Int, down: Boolean): Int {

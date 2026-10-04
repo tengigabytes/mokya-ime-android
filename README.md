@@ -69,7 +69,7 @@ mokya-ime-android/
 │   └── src/
 │       ├── main/java/.../mokyaime/
 │       │   ├── MokyaImeService.kt   engine ↔ InputConnection, touch + hardware input
-│       │   ├── ui/KeyboardView.kt   on-screen half-keyboard (canvas)
+│       │   ├── ui/KeyboardView.kt   on-screen half-keyboard, QWERTY and symbol pages (canvas)
 │       │   ├── ui/CandidateStripView.kt  candidates / symbol picker, expandable
 │       │   ├── SetupActivity.kt     launcher + IME settings, try-it field
 │       │   ├── LicensesActivity.kt  NOTICE and licence texts
@@ -85,7 +85,8 @@ mokya-ime-android/
 │   └── src/main/kotlin/.../
 │       ├── engine/               MieEngine, MieListener, MokyaKeys, MieNative
 │       ├── input/                keyboard layout & labels, touch timing
-│       │                         (PressTracker), candidate rows (CandidateGrid),
+│       │                         (PressTracker), picking a symbol by sliding
+│       │                         (PhonemeSlide), candidate rows (CandidateGrid),
 │       │                         HardwareKeyMapper, EditorPolicy
 │       └── fieldtest/            field-test checklist, report, trace ring
 ├── licenses/                     LGPL-2.1 and CC BY-SA 4.0 texts (dictionary data)
@@ -143,6 +144,11 @@ CI (`.github/workflows/android.yml`) runs on every push and pull request:
   window edge to edge). These type through injected hardware keys and
   touches on the on-screen keyboard.
 
+The end-to-end tests can be run again on the same install, and on a phone
+in use: each test sets the learned words aside, types with none, and puts
+them back, saving nothing meanwhile. They do switch the keyboard to Mokya
+IME and type into the setup screen's field.
+
 ## Testing on a device
 
 Debug builds add a second launcher entry, **Mokya field test**, for
@@ -184,6 +190,21 @@ composing text and UI are refreshed once the call returns.
 | `now_ms` | `SystemClock.uptimeMillis()` (same base as `KeyEvent.getEventTime()`) |
 | `tick` | `Handler` every 20 ms, only while `MieEngine.needsTick` (something pending, or SYM1 held for the long-press picker) |
 
+What the touch keyboard adds on top of the engine:
+
+- A Bopomofo symbol picked by sliding or holding goes to the engine as an
+  explicit phoneme flag, as a Dachen hardware key does. The device's way to
+  reach the second symbol (a second long press within 800 ms) is not used.
+- The engine cannot be told which punctuation mark or, in EN, which letter
+  of a key is meant, so those picks are typed as text
+  (`KeyboardLayout.pickIsPhoneme`), after committing what is pending the
+  way OK would. Letters spelled in EN are therefore not predicted on.
+- Holding ，SYM opens the engine's picker as on the device; with the
+  on-screen keyboard up, the keyboard shows a page for it
+  (`KeyboardLayout.pickerRows`) instead of the strip listing its sixteen
+  cells. A key of that page closes the picker with a short SYM1 press and
+  types its symbol as text.
+
 The dictionary is a read-only memory map of the APK asset. The native
 engine holds a global reference to that buffer for its whole life. The
 personalised LRU is loaded in `onCreate` and saved atomically to
@@ -198,6 +219,9 @@ Known limitations:
 - LRU timestamps use uptime, which restarts at boot; MokyaLora behaves the
   same.
 - The on-screen keyboard has no accessibility (TalkBack) support yet.
+- With the candidates opened in rows, the hardware Up / Down keys still
+  move by one engine page, not by one row.
+- In EN there is no caps lock: holding a key and sliding types one capital.
 
 ## Licence
 

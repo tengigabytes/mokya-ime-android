@@ -13,7 +13,9 @@ import io.github.tengigabytes.mokyaime.engine.MokyaKeys
  * strip and the cursor is placed by touching the text (hardware arrow keys
  * still navigate). FUNC, SET, BACK and the volume keys are not used by the
  * engine either; Android's own Back key hides the keyboard. ABC mode uses
- * [qwertyRows] instead of multi-tap.
+ * [qwertyRows] instead of multi-tap, and the SYM1 picker has a page of its
+ * own ([pickerRows]). Keys can offer symbols to pick by sliding
+ * ([slideChoices]).
  */
 object KeyboardLayout {
 
