@@ -83,6 +83,7 @@
         <item>touch.del_repeat|⌫ 按住連續刪除</item>
         <item>touch.sym1|，SYM 短按打逗號、長按開符號表</item>
         <item>touch.sym2|。？！ 連按切換</item>
+        <item>touch.sym2_slide|。？！：往左滑 。、往右滑 ！、長按 ？</item>
     </string-array>
 
     <string-array name="ft_items_english">

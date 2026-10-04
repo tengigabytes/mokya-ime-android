@@ -11,6 +11,18 @@ import kotlin.test.assertTrue
 class KeyboardLayoutTest {
 
     @Test
+    fun slideChoicesAreTheSymbolsOfBopomofoKeysAndSentenceMarksInZh() {
+        assertEquals(listOf("ㄍ", "ㄐ"), KeyboardLayout.slideChoices(MokyaKeys.KEY_E, InputMode.SMART_ZH))
+        assertEquals(listOf("ㄞ", "ㄢ", "ㄦ"), KeyboardLayout.slideChoices(MokyaKeys.KEY_9, InputMode.SMART_ZH))
+        assertEquals(listOf("。", "？", "！"), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM2, InputMode.SMART_ZH))
+        assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM1, InputMode.SMART_ZH))
+        assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_E, InputMode.SMART_EN))
+        assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM2, InputMode.SMART_EN))
+        assertTrue(KeyboardLayout.defersPress(MokyaKeys.KEY_SYM2, InputMode.SMART_ZH))
+        assertFalse(KeyboardLayout.defersPress(MokyaKeys.KEY_SYM2, InputMode.DIRECT))
+    }
+
+    @Test
     fun everyInputKeyAppearsOnce() {
         val keys = KeyboardLayout.rows.flatten()
         assertEquals(keys.size, keys.toSet().size)

@@ -275,6 +275,16 @@ class ImeEndToEndTest {
     }
 
     @Test
+    fun touchSentenceMarks() {
+        slide(MokyaKeys.KEY_SYM2, dxDp = 40f)               // slid right
+        waitForText("！")
+        touch(MokyaKeys.KEY_SYM2, holdMs = 600)             // held: the middle one
+        waitForText("！？")
+        slide(MokyaKeys.KEY_SYM2, dxDp = -40f)
+        waitForText("！？。")
+    }
+
+    @Test
     fun touchSym1LongPressOpensPicker() {
         touch(MokyaKeys.KEY_SYM1, holdMs = 800)
         assertTrue("symbol picker not open\n${traceDump()}", onMain { MokyaImeService.current!!.pickerActiveForTest })

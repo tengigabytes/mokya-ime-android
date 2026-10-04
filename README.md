@@ -23,7 +23,8 @@ Bopomofo symbols (ㄞㄢㄦ has three):
   sliding types the first one, or the middle one (ㄢ) on ㄞㄢㄦ. Slide up
   or down off the key to cancel.
 - **MODE** cycles 中 → EN → ABC. **，SYM** types ，; hold it for the symbol
-  table. **。.？** cycles 。？！.
+  table. **。？！** cycles 。？！ on repeated
+  taps; slide left on it for 。, right for ！, or hold it for ？.
 - Tap a candidate in the strip to enter it. Swipe the strip to scroll it, or
   tap **▲** at its right end to open every candidate in rows above it; they
   close again once you pick one. **OK** enters the highlighted candidate,

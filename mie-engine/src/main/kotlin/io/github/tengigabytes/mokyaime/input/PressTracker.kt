@@ -6,7 +6,7 @@ import io.github.tengigabytes.mokyaime.engine.MokyaKeys
 /**
  * Turns touch-down / touch-up on on-screen keys into MIE key edges.
  *
- * - Deferred keys (input keys in SmartZh, see [KeyboardLayout.defersPress])
+ * - Deferred keys ([KeyboardLayout.defersPress]: in SmartZh, the input keys)
  *   act on release, with press + release. Released before [LONG_PRESS_MS]
  *   without a symbol picked, they carry no flag (a fuzzy half-key tap).
  *   With one picked by sliding ([pick], see [PhonemeSlide]) they carry its
@@ -14,7 +14,9 @@ import io.github.tengigabytes.mokyaime.engine.MokyaKeys
  *   reports, they carry the flag of the picked symbol, or else of the one
  *   that holding gives. The device's own way to reach the second symbol, a
  *   second long press within 800 ms, is not used: on a touch screen that
- *   leaves 300 ms to lift the finger and press again.
+ *   leaves 300 ms to lift the finger and press again. SYM2 is deferred
+ *   too: its tap goes to the engine as it is, and the view types a picked
+ *   sentence mark itself, after [cancel].
  * - [REPEATING] keys (DEL and the arrows) press on touch-down and, when
  *   held, press again after [REPEAT_DELAY_MS] and every
  *   [REPEAT_INTERVAL_MS]. This auto-repeat is an Android addition; the

@@ -105,19 +105,31 @@ object KeyboardLayout {
             MokyaKeys.KEY_TAB -> Label("⇥", "TAB")
             MokyaKeys.KEY_SPACE -> Label("␣", "SPACE")
             MokyaKeys.KEY_SYM1 -> Label(if (zh) "，" else ",", "SYM")
-            MokyaKeys.KEY_SYM2 -> Label(if (zh) "。？！" else ". ? !", "")
+            MokyaKeys.KEY_SYM2 -> Label(if (zh) zhSentenceMarks.joinToString("") else ". ? !", "")
             MokyaKeys.KEY_OK -> Label("OK", "")
             MokyaKeys.KEY_DEL -> Label("⌫", "DEL")
             else -> Label("", "")
         }
     }
 
+    /** SYM2's sentence marks in SmartZh, as `kSym2ZhCycle` in libmie's `src/ime_direct.cpp`. */
+    val zhSentenceMarks: List<String> = listOf("。", "？", "！")
+
     /**
-     * True for keys whose press is deferred until release: the 20 input
-     * keys in SmartZh, where sliding or holding picks a phoneme
-     * ([PressTracker]). Other modes have nothing to pick, so their input
-     * keys act on press.
+     * What sliding on [keycode] or holding it picks from ([PhonemeSlide]),
+     * in the order the key shows them; empty when there is nothing to
+     * pick. In SmartZh the 20 input keys offer their Bopomofo symbols and
+     * SYM2 its sentence marks; other modes have nothing to pick.
      */
-    fun defersPress(keycode: Int, mode: InputMode): Boolean =
-        mode == InputMode.SMART_ZH && KeyLabels.isInputKey(keycode)
+    fun slideChoices(keycode: Int, mode: InputMode): List<String> = when {
+        mode != InputMode.SMART_ZH -> emptyList()
+        keycode == MokyaKeys.KEY_SYM2 -> zhSentenceMarks
+        else -> KeyLabels.inputKey(keycode)?.phonemes.orEmpty()
+    }
+
+    /**
+     * True for keys whose press is deferred until release ([PressTracker]):
+     * those with [slideChoices]. Other keys act on press.
+     */
+    fun defersPress(keycode: Int, mode: InputMode): Boolean = slideChoices(keycode, mode).isNotEmpty()
 }

@@ -85,6 +85,7 @@
         <item>touch.del_repeat|Holding ⌫ keeps deleting</item>
         <item>touch.sym1|，SYM: tap types a comma, hold opens the symbol table</item>
         <item>touch.sym2|。？！ cycles on repeated taps</item>
+        <item>touch.sym2_slide|。？！: slide left for 。, right for ！, hold for ？</item>
     </string-array>
 
     <string-array name="ft_items_english">

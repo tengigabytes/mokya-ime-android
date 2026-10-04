@@ -35,7 +35,7 @@ import io.github.tengigabytes.mokyaime.input.TouchKey
  *
  * In 中 a Bopomofo key is tapped for any of its symbols, or one is picked by
  * sliding left or right ([PhonemeSlide]) or by holding the key; a popup
- * above the key then shows which.
+ * above the key then shows which. 。？！ is picked from in the same way.
  */
 class KeyboardView @JvmOverloads constructor(
     context: Context,
@@ -85,13 +85,18 @@ class KeyboardView @JvmOverloads constructor(
 
     private class Key(val spec: TouchKey, val bounds: RectF = RectF())
 
-    /** A finger on [key]. [slides]: a Bopomofo key in 中, whose symbols can be picked. */
-    private class Press(val key: Key, val downX: Float, val slides: Boolean) {
+    /** A finger on [key]. [choices]: what sliding or holding picks from ([KeyboardLayout.slideChoices]). */
+    private class Press(val key: Key, val downX: Float, val choices: List<String>) {
+        val slides: Boolean get() = choices.isNotEmpty()
+
         /** Past the long-press mark. */
         var held = false
 
-        /** Symbol picked by sliding. */
+        /** Index in [choices] picked by sliding. */
         var phoneme: Int? = null
+
+        /** Index in [choices] that a release types, or null for a plain tap. */
+        val typed: Int? get() = phoneme ?: if (held) PhonemeSlide.held(choices.size) else null
     }
 
     private var rows: List<List<Key>> = buildRows()
@@ -276,9 +281,8 @@ class KeyboardView @JvmOverloads constructor(
 
     /** The symbols of a held or slid key, above it, with the one a release types highlighted. */
     private fun drawPhonemePopup(canvas: Canvas, press: Press) {
-        val keycode = (press.key.spec as? TouchKey.Engine)?.keycode ?: return
-        val phonemes = KeyLabels.inputKey(keycode)?.phonemes ?: return
-        val typed = press.phoneme ?: PhonemeSlide.held(phonemes.size)
+        val phonemes = press.choices
+        val typed = press.typed
         val key = press.key.bounds
         val popupWidth = popupCellWidth * phonemes.size
         val left = (key.centerX() - popupWidth / 2).coerceIn(gap, maxOf(gap, width - gap - popupWidth))
@@ -325,11 +329,11 @@ class KeyboardView @JvmOverloads constructor(
                 if (key == null) return true
                 val pointer = event.getPointerId(i)
                 val engineKey = key.spec as? TouchKey.Engine
-                val defers = engineKey != null && KeyboardLayout.defersPress(engineKey.keycode, mode)
-                presses[pointer] = Press(key, event.getX(i), slides = defers)
+                val press = Press(key, event.getX(i), engineKey?.let { KeyboardLayout.slideChoices(it.keycode, mode) }.orEmpty())
+                presses[pointer] = press
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 // Text, Shift and the page key act on release, so sliding off cancels them.
-                engineKey?.let { tracker.down(pointer, it.keycode, defers) }
+                engineKey?.let { tracker.down(pointer, it.keycode, deferPress = press.slides) }
                 invalidate()
             }
             MotionEvent.ACTION_MOVE -> {
@@ -339,9 +343,9 @@ class KeyboardView @JvmOverloads constructor(
                     val key = press.key
                     val x = event.getX(i)
                     val y = event.getY(i)
-                    // Sliding off a key abandons it (it types nothing). A Bopomofo
-                    // key in 中 is only left upwards or downwards: sideways picks
-                    // one of its symbols.
+                    // Sliding off a key abandons it (it types nothing). A key with
+                    // symbols to pick is only left upwards or downwards: sideways
+                    // picks one of them.
                     val off = if (press.slides) {
                         y < key.bounds.top - key.bounds.height() / 2 || y > key.bounds.bottom + key.bounds.height() / 2
                     } else {
@@ -353,8 +357,7 @@ class KeyboardView @JvmOverloads constructor(
                         if (key.spec is TouchKey.Engine) tracker.cancel(pointer)
                         invalidate()
                     } else if (press.slides) {
-                        val count = KeyLabels.inputKey((key.spec as TouchKey.Engine).keycode)?.phonemes?.size ?: 1
-                        val phoneme = PhonemeSlide.picked(count, x - press.downX, slideThreshold)
+                        val phoneme = PhonemeSlide.picked(press.choices.size, x - press.downX, slideThreshold)
                         if (phoneme != press.phoneme) {
                             MokyaImeService.traceInput { "touch slid to phoneme $phoneme of key=${key.spec}" }
                             press.phoneme = phoneme
@@ -368,8 +371,18 @@ class KeyboardView @JvmOverloads constructor(
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val pointer = event.getPointerId(event.actionIndex)
                 MokyaImeService.trace { "touch up" }
-                when (val spec = presses.remove(pointer)?.key?.spec) {
-                    is TouchKey.Engine -> tracker.up(pointer)
+                val press = presses.remove(pointer) ?: return true
+                when (val spec = press.key.spec) {
+                    is TouchKey.Engine -> {
+                        val typed = press.typed
+                        if (typed != null && !KeyLabels.isInputKey(spec.keycode)) {
+                            // A sentence mark: the engine only cycles through them.
+                            tracker.cancel(pointer)
+                            onText(press.choices[typed])
+                        } else {
+                            tracker.up(pointer)
+                        }
+                    }
                     is TouchKey.Text -> {
                         onText(if (shift.active) spec.shifted else spec.normal)
                         shift.typed()
@@ -380,7 +393,6 @@ class KeyboardView @JvmOverloads constructor(
                         MokyaImeService.trace { "ABC page: ${if (symbols) "symbols" else "letters"}" }
                         rebuild()
                     }
-                    null -> Unit
                 }
                 invalidate()
             }

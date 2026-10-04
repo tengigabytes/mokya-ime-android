@@ -12,7 +12,7 @@
     <string name="setup_status_enabled">Mokya IME is enabled but not the current keyboard.</string>
     <string name="setup_status_ready">Mokya IME is the current keyboard.</string>
     <string name="setup_try_hint">Try typing here</string>
-    <string name="setup_touch_help">On-screen keyboard: each key carries two Bopomofo symbols (ㄞㄢㄦ has three). Tap a key to match any of them; slide left or right on it to pick the left or right symbol, or hold it for the first (ㄢ on ㄞㄢㄦ). MODE switches 中 / EN / ABC; hold ，SYM for the symbol table. Tap a candidate to enter it; swipe the row or tap ▲ to see them all; OK enters the highlighted one, and shows the field\'s action when nothing is pending. ABC is a QWERTY keyboard with numbers.</string>
+    <string name="setup_touch_help">On-screen keyboard: each key carries two Bopomofo symbols (ㄞㄢㄦ has three). Tap a key to match any of them; slide left or right on it to pick the left or right symbol, or hold it for the first (ㄢ on ㄞㄢㄦ). MODE switches 中 / EN / ABC; hold ，SYM for the symbol table; on 。？！ slide left for 。, right for ！, hold for ？. Tap a candidate to enter it; swipe the row or tap ▲ to see them all; OK enters the highlighted one, and shows the field\'s action when nothing is pending. ABC is a QWERTY keyboard with numbers.</string>
     <string name="setup_hardware_help">Hardware keyboard: 中 mode uses the standard Zhuyin (Dachen) layout and Enter commits; EN mode predicts words; ABC types directly. Ctrl+Space switches modes. Shift types capitals and full-width punctuation (，。？：！).</string>
     <string name="setup_licenses">Open-source licences</string>
     <string name="licenses_title">Open-source licences</string>
