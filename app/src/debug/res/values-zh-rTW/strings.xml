@@ -90,6 +90,9 @@
 
     <string-array name="ft_items_english">
         <item>en.prediction|EN 模式的半鍵盤英文預測</item>
+        <item>en.slide_letter|EN：在鍵上左／右滑直接打出左／右邊的字母，先長按再滑是大寫</item>
+        <item>en.slide_spacing|EN：用滑動拼字時，字的前面會自動空一格，字中間不會</item>
+        <item>en.slide_marks|EN：; , : 與 . ? ! 可以像中文標點鍵一樣滑，後面自動空一格</item>
         <item>abc.shift|ABC：⇧ 點一下大寫一個字、點兩下鎖定</item>
         <item>abc.number_row|ABC：數字列與 ⇧ 符號</item>
         <item>abc.symbol_page|ABC：#+= 符號頁</item>

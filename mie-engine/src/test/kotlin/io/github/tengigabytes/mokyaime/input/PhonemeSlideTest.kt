@@ -20,7 +20,15 @@ class PhonemeSlideTest {
         assertNull(PhonemeSlide.picked(count = 2, dx = 19f, threshold = 20f))
         assertNull(PhonemeSlide.picked(count = 2, dx = -19f, threshold = 20f))
         assertEquals(1, PhonemeSlide.picked(count = 2, dx = 20f, threshold = 20f))
-        assertNull(PhonemeSlide.picked(count = 1, dx = 100f, threshold = 20f))
+        assertNull(PhonemeSlide.picked(count = 0, dx = 100f, threshold = 20f))
+    }
+
+    @Test
+    fun keyWithOneSymbolGivesItEitherWay() {
+        assertEquals(0, PhonemeSlide.picked(count = 1, dx = 100f, threshold = 20f))
+        assertEquals(0, PhonemeSlide.picked(count = 1, dx = -100f, threshold = 20f))
+        assertNull(PhonemeSlide.picked(count = 1, dx = 5f, threshold = 20f))
+        assertEquals(0, PhonemeSlide.held(1))
     }
 
     @Test

@@ -35,8 +35,9 @@ import io.github.tengigabytes.mokyaime.input.TouchKey
  *
  * In 中 a Bopomofo key is tapped for any of its symbols, or one is picked by
  * sliding left or right ([PhonemeSlide]) or by holding the key; a popup
- * above the key then shows which. 。？！ is picked from in the same way.
- * ，SYM types 、 or ： when slid; holding it opens the engine's picker,
+ * above the key then shows which. 。？！ is picked from in the same way,
+ * and so are the letters of a key in EN, where holding gives the capitals.
+ * ，SYM types 、 or ： when slid (; or : in EN); holding it opens the engine's picker,
  * for which the keyboard turns into a page of symbols ([picker]).
  */
 class KeyboardView @JvmOverloads constructor(
@@ -103,9 +104,23 @@ class KeyboardView @JvmOverloads constructor(
 
     private class Key(val spec: TouchKey, val bounds: RectF = RectF())
 
-    /** A finger on [key]. [choices]: what sliding or holding picks from ([KeyboardLayout.slideChoices]). */
-    private class Press(val key: Key, val downX: Float, val downTimeMs: Long, val choices: List<String>) {
+    /**
+     * A finger on [key]. [choices]: what sliding picks from
+     * ([KeyboardLayout.slideChoices]); [heldChoices]: the same once the key
+     * is held. [phonemes]: the engine takes the pick as a key flag.
+     */
+    private class Press(
+        val key: Key,
+        val downX: Float,
+        val downTimeMs: Long,
+        private val choices: List<String>,
+        private val heldChoices: List<String>,
+        val phonemes: Boolean,
+    ) {
         val slides: Boolean get() = choices.isNotEmpty()
+
+        /** What the popup shows and a release types from. */
+        val shown: List<String> get() = if (held) heldChoices else choices
 
         /** Holding the key opens the engine's picker instead of picking one of [choices]. */
         val holdOpensPicker = (key.spec as? TouchKey.Engine)?.let { KeyboardLayout.holdOpensPicker(it.keycode) } == true
@@ -113,14 +128,14 @@ class KeyboardView @JvmOverloads constructor(
         /** Past the long-press mark. */
         var held = false
 
-        /** Index in [choices] picked by sliding. */
+        /** Index in [shown] picked by sliding. */
         var phoneme: Int? = null
 
         /** Held without sliding, on a key that opens the picker: the engine has its press ([onKeyHeld]). */
         var engineDown = false
 
-        /** Index in [choices] that a release types, or null for a plain tap. */
-        val typed: Int? get() = phoneme ?: if (held && !holdOpensPicker) PhonemeSlide.held(choices.size) else null
+        /** Index in [shown] that a release types, or null for a plain tap. */
+        val typed: Int? get() = phoneme ?: if (held && !holdOpensPicker) PhonemeSlide.held(shown.size) else null
     }
 
     private var rows: List<List<Key>> = buildRows()
@@ -225,7 +240,7 @@ class KeyboardView @JvmOverloads constructor(
      */
     private fun updateGestureExclusion() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-        systemGestureExclusionRects = if (mode == InputMode.SMART_ZH && width > 0) {
+        systemGestureExclusionRects = if (mode != InputMode.DIRECT && width > 0) {
             listOf(Rect(0, 0, edgeGestureWidth, height), Rect(width - edgeGestureWidth, 0, width, height))
         } else {
             emptyList()
@@ -318,7 +333,7 @@ class KeyboardView @JvmOverloads constructor(
 
     /** The symbols of a held or slid key, above it, with the one a release types highlighted. */
     private fun drawPhonemePopup(canvas: Canvas, press: Press) {
-        val phonemes = press.choices
+        val phonemes = press.shown
         val typed = press.typed
         val key = press.key.bounds
         val popupWidth = popupCellWidth * phonemes.size
@@ -368,8 +383,13 @@ class KeyboardView @JvmOverloads constructor(
                 val pointer = event.getPointerId(i)
                 val engineKey = key.spec as? TouchKey.Engine
                 // The picker's page has nothing to pick by sliding: its SYM key only goes back.
-                val choices = if (picker) emptyList() else engineKey?.let { KeyboardLayout.slideChoices(it.keycode, mode) }.orEmpty()
-                val press = Press(key, event.getX(i), event.eventTime, choices)
+                val pickFrom = engineKey?.keycode?.takeUnless { picker }
+                val press = Press(
+                    key, event.getX(i), event.eventTime,
+                    choices = pickFrom?.let { KeyboardLayout.slideChoices(it, mode) }.orEmpty(),
+                    heldChoices = pickFrom?.let { KeyboardLayout.heldChoices(it, mode) }.orEmpty(),
+                    phonemes = pickFrom != null && KeyboardLayout.pickIsPhoneme(pickFrom, mode),
+                )
                 presses[pointer] = press
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 // Text, Shift and the page key act on release, so sliding off cancels them.
@@ -400,7 +420,7 @@ class KeyboardView @JvmOverloads constructor(
                         }
                         invalidate()
                     } else if (press.slides && !press.engineDown) {
-                        val phoneme = PhonemeSlide.picked(press.choices.size, x - press.downX, slideThreshold)
+                        val phoneme = PhonemeSlide.picked(press.shown.size, x - press.downX, slideThreshold)
                         if (phoneme != press.phoneme) {
                             MokyaImeService.traceInput { "touch slid to phoneme $phoneme of key=${key.spec}" }
                             press.phoneme = phoneme
@@ -423,10 +443,10 @@ class KeyboardView @JvmOverloads constructor(
                                 tracker.cancel(pointer)
                                 onKey(spec.keycode, false, 0)
                             }
-                            typed != null && !KeyLabels.isInputKey(spec.keycode) -> {
-                                // A punctuation mark: the engine has no way to name one.
+                            typed != null && !press.phonemes -> {
+                                // A mark, or a letter in EN: the engine has no way to name one.
                                 tracker.cancel(pointer)
-                                onText(press.choices[typed])
+                                onText(KeyboardLayout.slideText(spec.keycode, mode, press.shown[typed]))
                             }
                             else -> tracker.up(pointer)
                         }

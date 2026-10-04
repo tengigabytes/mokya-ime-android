@@ -31,12 +31,9 @@ class KeyboardLayoutTest {
         assertEquals(listOf("ㄞ", "ㄢ", "ㄦ"), KeyboardLayout.slideChoices(MokyaKeys.KEY_9, InputMode.SMART_ZH))
         assertEquals(listOf("。", "？", "！"), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM2, InputMode.SMART_ZH))
         assertEquals(listOf("、", "："), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM1, InputMode.SMART_ZH))
-        assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM1, InputMode.SMART_EN))
         assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_MODE, InputMode.SMART_ZH))
         assertTrue(KeyboardLayout.holdOpensPicker(MokyaKeys.KEY_SYM1))
         assertFalse(KeyboardLayout.holdOpensPicker(MokyaKeys.KEY_SYM2))
-        assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_E, InputMode.SMART_EN))
-        assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM2, InputMode.SMART_EN))
         assertTrue(KeyboardLayout.defersPress(MokyaKeys.KEY_SYM2, InputMode.SMART_ZH))
         assertFalse(KeyboardLayout.defersPress(MokyaKeys.KEY_SYM2, InputMode.DIRECT))
     }
@@ -123,15 +120,52 @@ class KeyboardLayoutTest {
         assertEquals("中", KeyboardLayout.label(MokyaKeys.KEY_MODE, InputMode.SMART_ZH).main)
         assertEquals("ABC", KeyboardLayout.label(MokyaKeys.KEY_MODE, InputMode.DIRECT).main)
         assertEquals(KeyboardLayout.Label("、，：", "SYM"), KeyboardLayout.label(MokyaKeys.KEY_SYM1, InputMode.SMART_ZH))
-        assertEquals(KeyboardLayout.Label(",", "SYM"), KeyboardLayout.label(MokyaKeys.KEY_SYM1, InputMode.SMART_EN))
+        assertEquals(KeyboardLayout.Label("; , :", "SYM"), KeyboardLayout.label(MokyaKeys.KEY_SYM1, InputMode.SMART_EN))
+        assertEquals(KeyboardLayout.Label(",", "SYM"), KeyboardLayout.label(MokyaKeys.KEY_SYM1, InputMode.DIRECT))
+        assertEquals(KeyboardLayout.Label(". ? !", ""), KeyboardLayout.label(MokyaKeys.KEY_SYM2, InputMode.SMART_EN))
     }
 
     @Test
-    fun onlySmartZhKeysWithSomethingToPickDeferPress() {
+    fun slideChoicesInEnglishAreLettersOrDigitsAndCapitalsWhenHeld() {
+        assertEquals(listOf("e", "r"), KeyboardLayout.slideChoices(MokyaKeys.KEY_E, InputMode.SMART_EN))
+        assertEquals(listOf("E", "R"), KeyboardLayout.heldChoices(MokyaKeys.KEY_E, InputMode.SMART_EN))
+        assertEquals(listOf("l"), KeyboardLayout.slideChoices(MokyaKeys.KEY_L, InputMode.SMART_EN))
+        assertEquals(listOf("1", "2"), KeyboardLayout.slideChoices(MokyaKeys.KEY_1, InputMode.SMART_EN))
+        assertEquals(listOf("1", "2"), KeyboardLayout.heldChoices(MokyaKeys.KEY_1, InputMode.SMART_EN))
+        // No Latin on the ㄡㄥ key, and nothing to pick in ABC.
+        assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_BACKSLASH, InputMode.SMART_EN))
+        assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_E, InputMode.DIRECT))
+        // Holding does not change what a Bopomofo key offers.
+        assertEquals(listOf("ㄍ", "ㄐ"), KeyboardLayout.heldChoices(MokyaKeys.KEY_E, InputMode.SMART_ZH))
+        // Only a Bopomofo symbol goes to the engine as a flag.
+        assertTrue(KeyboardLayout.pickIsPhoneme(MokyaKeys.KEY_E, InputMode.SMART_ZH))
+        assertFalse(KeyboardLayout.pickIsPhoneme(MokyaKeys.KEY_E, InputMode.SMART_EN))
+        assertFalse(KeyboardLayout.pickIsPhoneme(MokyaKeys.KEY_SYM2, InputMode.SMART_ZH))
+    }
+
+    @Test
+    fun englishMarksAreFollowedByASpace() {
+        assertEquals(listOf(".", "?", "!"), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM2, InputMode.SMART_EN))
+        assertEquals(listOf(";", ":"), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM1, InputMode.SMART_EN))
+        assertEquals("? ", KeyboardLayout.slideText(MokyaKeys.KEY_SYM2, InputMode.SMART_EN, "?"))
+        assertEquals("; ", KeyboardLayout.slideText(MokyaKeys.KEY_SYM1, InputMode.SMART_EN, ";"))
+        // Chinese marks and spelled letters are typed as they are.
+        assertEquals("？", KeyboardLayout.slideText(MokyaKeys.KEY_SYM2, InputMode.SMART_ZH, "？"))
+        assertEquals("r", KeyboardLayout.slideText(MokyaKeys.KEY_E, InputMode.SMART_EN, "r"))
+        // ABC has its own keys for these.
+        assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM1, InputMode.DIRECT))
+        assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM2, InputMode.DIRECT))
+    }
+
+    @Test
+    fun keysWithSomethingToPickDeferPress() {
         assertTrue(KeyboardLayout.defersPress(MokyaKeys.KEY_Q, InputMode.SMART_ZH))
-        assertFalse(KeyboardLayout.defersPress(MokyaKeys.KEY_Q, InputMode.SMART_EN))
+        assertTrue(KeyboardLayout.defersPress(MokyaKeys.KEY_Q, InputMode.SMART_EN))
+        assertFalse(KeyboardLayout.defersPress(MokyaKeys.KEY_Q, InputMode.DIRECT))
+        assertFalse(KeyboardLayout.defersPress(MokyaKeys.KEY_BACKSLASH, InputMode.SMART_EN))
         assertTrue(KeyboardLayout.defersPress(MokyaKeys.KEY_SYM1, InputMode.SMART_ZH))
-        assertFalse(KeyboardLayout.defersPress(MokyaKeys.KEY_SYM1, InputMode.SMART_EN))
+        assertTrue(KeyboardLayout.defersPress(MokyaKeys.KEY_SYM1, InputMode.SMART_EN))
+        assertFalse(KeyboardLayout.defersPress(MokyaKeys.KEY_SYM1, InputMode.DIRECT))
         assertFalse(KeyboardLayout.defersPress(MokyaKeys.KEY_DEL, InputMode.SMART_ZH))
     }
 }

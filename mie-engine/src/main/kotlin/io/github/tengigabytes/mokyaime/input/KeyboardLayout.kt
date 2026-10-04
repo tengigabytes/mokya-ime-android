@@ -114,8 +114,7 @@ object KeyboardLayout {
     fun label(keycode: Int, mode: InputMode): Label {
         KeyLabels.inputKey(keycode)?.let { key ->
             val bopomofo = key.phonemes.joinToString("")
-            val latin = (key.digits.ifEmpty { key.letters.filter { it == it.lowercase() } })
-                .joinToString(" ")
+            val latin = latin(key).joinToString(" ")
             return when {
                 mode == InputMode.SMART_ZH -> Label(bopomofo, latin)
                 latin.isEmpty() -> Label(bopomofo, "")
@@ -127,9 +126,16 @@ object KeyboardLayout {
             MokyaKeys.KEY_MODE -> Label(mode.indicator, "MODE")
             MokyaKeys.KEY_TAB -> Label("⇥", "TAB")
             MokyaKeys.KEY_SPACE -> Label("␣", "SPACE")
-            // In 中, as the key is used: 、 to the left, ， in place, ： to the right.
-            MokyaKeys.KEY_SYM1 -> Label(if (zh) zhCommaSlides.joinToString("，") else ",", "SYM")
-            MokyaKeys.KEY_SYM2 -> Label(if (zh) zhSentenceMarks.joinToString("") else ". ? !", "")
+            // As the key is used: 、 to the left, ， in place, ： to the right (; , : in EN).
+            MokyaKeys.KEY_SYM1 -> Label(
+                when (mode) {
+                    InputMode.SMART_ZH -> zhCommaSlides.joinToString("，")
+                    InputMode.SMART_EN -> enCommaSlides.joinToString(" , ")
+                    InputMode.DIRECT -> ","
+                },
+                "SYM",
+            )
+            MokyaKeys.KEY_SYM2 -> Label(if (zh) zhSentenceMarks.joinToString("") else enSentenceMarks.joinToString(" "), "")
             MokyaKeys.KEY_OK -> Label("OK", "")
             MokyaKeys.KEY_DEL -> Label("⌫", "DEL")
             else -> Label("", "")
@@ -139,22 +145,65 @@ object KeyboardLayout {
     /** SYM2's sentence marks in SmartZh, as `kSym2ZhCycle` in libmie's `src/ime_direct.cpp`. */
     val zhSentenceMarks: List<String> = listOf("。", "？", "！")
 
+    /** SYM2's sentence marks in SmartEn and Direct (`kSym2EnCycle`). */
+    val enSentenceMarks: List<String> = listOf(".", "?", "!")
+
     /** What sliding left and right on SYM1 types in SmartZh; a tap types ，. */
     val zhCommaSlides: List<String> = listOf("、", "：")
+
+    /** The same in SmartEn, where a tap types a comma. */
+    val enCommaSlides: List<String> = listOf(";", ":")
 
     /**
      * What sliding on [keycode] picks from ([PhonemeSlide]), in the order
      * the key shows them; empty when there is nothing to pick. In SmartZh
      * the 20 input keys offer their Bopomofo symbols, SYM2 its sentence
-     * marks and SYM1 [zhCommaSlides]; other modes have nothing to pick.
-     * Holding the key picks too, unless it [holdOpensPicker].
+     * marks and SYM1 [zhCommaSlides]. In SmartEn the input keys offer their
+     * letters or digits, to spell what the dictionary does not predict, and
+     * SYM2 and SYM1 their marks as in SmartZh. Direct has nothing to pick.
+     * Holding the key picks too ([heldChoices]), unless it
+     * [holdOpensPicker].
      */
-    fun slideChoices(keycode: Int, mode: InputMode): List<String> = when {
-        mode != InputMode.SMART_ZH -> emptyList()
-        keycode == MokyaKeys.KEY_SYM1 -> zhCommaSlides
-        keycode == MokyaKeys.KEY_SYM2 -> zhSentenceMarks
-        else -> KeyLabels.inputKey(keycode)?.phonemes.orEmpty()
+    fun slideChoices(keycode: Int, mode: InputMode): List<String> = when (mode) {
+        InputMode.SMART_ZH -> when (keycode) {
+            MokyaKeys.KEY_SYM1 -> zhCommaSlides
+            MokyaKeys.KEY_SYM2 -> zhSentenceMarks
+            else -> KeyLabels.inputKey(keycode)?.phonemes.orEmpty()
+        }
+        InputMode.SMART_EN -> when (keycode) {
+            MokyaKeys.KEY_SYM1 -> enCommaSlides
+            MokyaKeys.KEY_SYM2 -> enSentenceMarks
+            else -> KeyLabels.inputKey(keycode)?.let(::latin).orEmpty()
+        }
+        InputMode.DIRECT -> emptyList()
     }
+
+    /**
+     * The text typed for [choice] picked on [keycode]. A mark of SYM1 or
+     * SYM2 in SmartEn is followed by a space, as the engine follows the
+     * ones it types itself ("Apple, World. ").
+     */
+    fun slideText(keycode: Int, mode: InputMode, choice: String): String =
+        if (mode == InputMode.SMART_EN && (keycode == MokyaKeys.KEY_SYM1 || keycode == MokyaKeys.KEY_SYM2)) "$choice " else choice
+
+    /**
+     * What [slideChoices] become once the key is held: in SmartEn the
+     * capitals, so holding a key and then sliding types one; elsewhere the
+     * same symbols.
+     */
+    fun heldChoices(keycode: Int, mode: InputMode): List<String> =
+        slideChoices(keycode, mode).let { if (mode == InputMode.SMART_EN) it.map(String::uppercase) else it }
+
+    /**
+     * True when the engine takes the pick as a key flag: a Bopomofo symbol
+     * in SmartZh. Any other pick is typed as text; the engine cannot be told
+     * which mark or, in SmartEn, which letter of a key is meant.
+     */
+    fun pickIsPhoneme(keycode: Int, mode: InputMode): Boolean =
+        mode == InputMode.SMART_ZH && KeyLabels.isInputKey(keycode)
+
+    /** Digits of a row 0 key, else its lower-case letters. */
+    private fun latin(key: InputKey): List<String> = key.digits.ifEmpty { key.letters.filter { it == it.lowercase() } }
 
     /** True for SYM1: holding it opens the engine's picker rather than picking a symbol. */
     fun holdOpensPicker(keycode: Int): Boolean = keycode == MokyaKeys.KEY_SYM1

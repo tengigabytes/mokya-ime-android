@@ -92,6 +92,9 @@
 
     <string-array name="ft_items_english">
         <item>en.prediction|EN mode predicts English words on the half-keyboard</item>
+        <item>en.slide_letter|EN: sliding on a key types its left / right letter; hold first for a capital</item>
+        <item>en.slide_spacing|EN: spelling a word by sliding puts a space before it, not inside it</item>
+        <item>en.slide_marks|EN: ; , : and . ? ! slide like their Chinese keys, each followed by a space</item>
         <item>abc.shift|ABC: ⇧ once for one capital, twice to lock</item>
         <item>abc.number_row|ABC: number row and its ⇧ symbols</item>
         <item>abc.symbol_page|ABC: #+= symbol page</item>

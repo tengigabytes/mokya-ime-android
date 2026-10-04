@@ -280,6 +280,41 @@ class ImeEndToEndTest {
     }
 
     @Test
+    fun englishSlideSpellsLettersAndHoldingGivesCapitals() {
+        onMain { MokyaImeService.current!!.switchModeForTest(InputMode.SMART_EN) }
+        keys("hello")
+        key(KeyEvent.KEYCODE_ENTER)
+        waitForText("Hello")
+        slide(MokyaKeys.KEY_Q, dxDp = 40f)                  // a new word: a space, then w
+        waitForText("Hello w")
+        slide(MokyaKeys.KEY_Q, dxDp = -40f)                 // the same word goes on
+        waitForText("Hello wq")
+        slide(MokyaKeys.KEY_E, dxDp = 40f, holdMs = 600)    // held, then slid: the capital
+        waitForText("Hello wqR")
+        slide(MokyaKeys.KEY_1, dxDp = 40f)                  // a digit takes no space
+        waitForText("Hello wqR2")
+        slide(MokyaKeys.KEY_Q, dxDp = -40f)                 // and the word goes on after it
+        waitForText("Hello wqR2q")
+    }
+
+    @Test
+    fun englishMarksSlideAndKeepTheirSpace() {
+        onMain { MokyaImeService.current!!.switchModeForTest(InputMode.SMART_EN) }
+        keys("hello")
+        slide(MokyaKeys.KEY_SYM1, dxDp = -40f)              // commits the word, then "; "
+        waitForText("Hello; ")
+        slide(MokyaKeys.KEY_SYM1, dxDp = 40f)
+        waitForText("Hello; : ")
+        touch(MokyaKeys.KEY_SYM2, holdMs = 600)             // held: the middle mark
+        waitForText("Hello; : ? ")
+        slide(MokyaKeys.KEY_SYM2, dxDp = 40f)
+        waitForText("Hello; : ? ! ")
+        slide(MokyaKeys.KEY_SYM2, dxDp = -40f)
+        waitForText("Hello; : ? ! . ")
+        assertTrue("picker opened\n${traceDump()}", onMain { !MokyaImeService.current!!.pickerActiveForTest })
+    }
+
+    @Test
     fun touchSentenceMarks() {
         slide(MokyaKeys.KEY_SYM2, dxDp = 40f)               // slid right
         waitForText("！")

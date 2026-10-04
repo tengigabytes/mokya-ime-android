@@ -2,13 +2,13 @@
 package io.github.tengigabytes.mokyaime.input
 
 /**
- * Picking one Bopomofo symbol of a half-keyboard key by sliding the finger
+ * Picking one symbol of a half-keyboard key by sliding the finger
  * sideways, in the order the key shows them: left for the first symbol,
  * right for the last. A key with three (ㄞㄢㄦ) gives the middle one when it
- * is held without sliding; a key with two gives the first.
+ * is held without sliding; a key with fewer gives the first.
  *
- * Indices are phoneme indices of [InputKey.phonemes], as
- * `MokyaKeys.keyFlagPhoneme` takes them.
+ * Indices are into [KeyboardLayout.slideChoices]; for a Bopomofo key these
+ * are the phoneme indices `MokyaKeys.keyFlagPhoneme` takes.
  */
 object PhonemeSlide {
 
@@ -18,7 +18,7 @@ object PhonemeSlide {
      * that point.
      */
     fun picked(count: Int, dx: Float, threshold: Float): Int? = when {
-        count < 2 -> null
+        count < 1 -> null
         dx <= -threshold -> 0
         dx >= threshold -> count - 1
         else -> null

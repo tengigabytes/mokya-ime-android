@@ -22,6 +22,11 @@ Bopomofo symbols (ㄞㄢㄦ has three):
   vibrates and turns amber) shows its symbols above it; releasing without
   sliding types the first one, or the middle one (ㄢ) on ㄞㄢㄦ. Slide up
   or down off the key to cancel.
+- In **EN** a tap predicts words; to spell one the dictionary does not
+  know, slide left or right on a key for its left or right letter (or
+  digit). Hold the key first for the capital. The first letter spelled
+  after a word gets a space before it. The two punctuation keys slide as
+  in 中: **; , :** and **. ? !**, each followed by a space.
 - **MODE** cycles 中 → EN → ABC. **，SYM** types ，; slide left on it
   for 、 or right for ：; hold it for a page
   of symbols with the digits on top: a key types its symbol and goes

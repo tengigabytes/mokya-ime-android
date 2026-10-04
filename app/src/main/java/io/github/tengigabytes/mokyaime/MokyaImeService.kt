@@ -167,6 +167,9 @@ class MokyaImeService : InputMethodService(), MieListener {
     /** The engine reported a composition change during the current call. */
     private var compositionDirty = false
 
+    /** EN: the last thing typed was a letter of a word being spelled ([commitSpelledLetter]). */
+    private var spelling = false
+
     // ── Lifecycle ────────────────────────────────────────────────────────
 
     override fun onCreate() {
@@ -208,7 +211,11 @@ class MokyaImeService : InputMethodService(), MieListener {
             view.onKeyHeld = { keycode, sinceMs -> dispatchKey(keycode, true, eventTimeMs = sinceMs) }
             view.onText = { text ->
                 closePicker()   // a key of the picker's page: it types one symbol and goes back
-                commitLiteral(text)
+                if (engine?.mode == InputMode.SMART_EN && text.length == 1 && text[0].isLetterOrDigit()) {
+                    commitSpelledLetter(text)
+                } else {
+                    commitLiteral(text)
+                }
             }
             engine?.let { view.mode = it.mode }
             keyboardView = view
@@ -455,6 +462,23 @@ class MokyaImeService : InputMethodService(), MieListener {
     private fun Int.toKeyChar(): Char? =
         if (this > 0 && this <= 0xFFFF && (this and KeyCharacterMap.COMBINING_ACCENT) == 0) toChar() else null
 
+    /**
+     * EN: types a letter or digit picked on its key, to spell a word the
+     * dictionary does not predict. The first letter after anything else
+     * starts a new word, with a space before it where the engine would put
+     * one before a predicted word; what follows continues it. A digit never
+     * gets a space (v2, R2D2).
+     */
+    private fun commitSpelledLetter(letter: String) {
+        runEngine { e ->
+            if (e.hasPending || e.candidates().isNotEmpty()) tap(e, MokyaKeys.KEY_OK, SystemClock.uptimeMillis())
+            val before = currentInputConnection?.getTextBeforeCursor(1, 0)
+            val newWord = letter[0].isLetter() && !spelling && !before.isNullOrEmpty() && before.last().isLetterOrDigit()
+            commitToEditor(if (newWord) " $letter" else letter)
+            spelling = true
+        }
+    }
+
     /** Commits pending input the way OK would, then inserts [text]. */
     private fun commitLiteral(text: String) {
         runEngine { e ->
@@ -463,6 +487,7 @@ class MokyaImeService : InputMethodService(), MieListener {
                 e.hasPending || e.candidates().isNotEmpty() -> tap(e, MokyaKeys.KEY_OK, SystemClock.uptimeMillis())
             }
             commitToEditor(text)
+            spelling = false
         }
     }
 
@@ -487,6 +512,7 @@ class MokyaImeService : InputMethodService(), MieListener {
     // ── MieListener: engine → editor ─────────────────────────────────────
 
     override fun onCommit(text: String) {
+        spelling = false
         if (detached) return
         if (text == "\n") {
             // Idle OK. sendKeyChar runs the editor action (send / search /
@@ -743,6 +769,7 @@ class MokyaImeService : InputMethodService(), MieListener {
     }
 
     private fun resetTracking(selStart: Int, selEnd: Int) {
+        spelling = false
         shown = NOTHING_SHOWN
         expectedReports.clear()
         expectedCursor = if (selStart >= 0 && selStart == selEnd) selEnd else -1
