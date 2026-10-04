@@ -16,21 +16,34 @@ on top, then the 5×5 core input area. The D-pad is left out: candidates are
 tapped, and the cursor is placed by touching the text. Each key carries two
 Bopomofo symbols (ㄞㄢㄦ has three):
 
-- Tap a key to match any of its symbols. Hold it (500 ms) to pin the first
-  symbol: the key vibrates and turns amber when it is pinned. Hold again
-  within 800 ms to cycle to the next.
-- **MODE** cycles 中 → EN → ABC. **，SYM** types ，; hold it for the symbol
-  table. **。.？** cycles 。？！.
-- Tap a candidate in the strip to enter it. **‹ ›** at the ends of the strip
-  page through the candidates (a swipe scrolls it too). **OK** enters the
-  highlighted candidate, and **⇥** moves the highlight to the next page.
+- Tap a key to match any of its symbols. To type one exactly, slide left
+  or right on the key, as the symbols are printed: left for the first,
+  right for the last. No need to wait. Holding the key (500 ms: it
+  vibrates and turns amber) shows its symbols above it; releasing without
+  sliding types the first one, or the middle one (ㄢ) on ㄞㄢㄦ. Slide up
+  or down off the key to cancel.
+- In **EN** a tap predicts words; to spell one the dictionary does not
+  know, slide left or right on a key for its left or right letter (or
+  digit). Hold the key first for the capital. The first letter spelled
+  after a word gets a space before it. The two punctuation keys slide as
+  in 中: **; , :** and **. ? !**, each followed by a space.
+- **MODE** cycles 中 → EN → ABC. **，SYM** types ，; slide left on it
+  for 、 or right for ：; hold it for a page
+  of symbols with the digits on top: a key types its symbol and goes
+  back (the key in its corner goes back without typing). **。？！** cycles 。？！ on repeated
+  taps; slide left on it for 。, right for ！, or hold it for ？.
+- Tap a candidate in the strip to enter it. Swipe the strip to scroll it, or
+  tap **▲** at its right end to open every candidate in rows above it; they
+  close again once you pick one. **OK** enters the highlighted candidate,
+  and **⇥** moves the highlight to the next page.
 - With nothing pending, OK turns blue and shows what it will do: the
   field's action (Send, Search, Next…) or ↵ for a new line. While
   composing it reads **OK** and only commits.
 - **ABC** shows QWERTY with a number row instead of multi-tap. **⇧** shifts
   the next character (capitals, and the symbols ! @ # … on the number row);
-  tap it twice to lock. Number, phone, password, e-mail and URL fields
-  start in ABC.
+  tap it twice to lock. **#+=** opens a page with every symbol
+  (= + [ ] { } \ | ~ < > ' " ` …); **abc** goes back. Number, phone,
+  password, e-mail and URL fields start in ABC.
 
 **Hardware keyboard.**
 
@@ -56,12 +69,14 @@ mokya-ime-android/
 │   └── src/
 │       ├── main/java/.../mokyaime/
 │       │   ├── MokyaImeService.kt   engine ↔ InputConnection, touch + hardware input
-│       │   ├── ui/KeyboardView.kt   on-screen half-keyboard (canvas)
-│       │   ├── ui/CandidateStripView.kt  mode, candidates / symbol picker, position
+│       │   ├── ui/KeyboardView.kt   on-screen half-keyboard, QWERTY and symbol pages (canvas)
+│       │   ├── ui/CandidateStripView.kt  candidates / symbol picker, expandable
 │       │   ├── SetupActivity.kt     launcher + IME settings, try-it field
 │       │   ├── LicensesActivity.kt  NOTICE and licence texts
 │       │   ├── DictionaryAsset.kt   memory-maps the dictionary asset
-│       │   └── LruStore.kt          LRU persistence (filesDir/mie_lru.bin)
+│       │   ├── LruStore.kt          LRU persistence (filesDir/mie_lru.bin)
+│       │   └── Diagnostics.kt       on-device trace for field tests
+│       ├── debug/                field-test page (debug builds only)
 │       ├── main/cpp/
 │       │   ├── mie_jni.cpp       JNI bridge (RegisterNatives, IImeListener)
 │       │   └── libmie/           git submodule → tengigabytes/libmie
@@ -69,9 +84,11 @@ mokya-ime-android/
 ├── mie-engine/                   pure-JVM Kotlin (:mie-engine)
 │   └── src/main/kotlin/.../
 │       ├── engine/               MieEngine, MieListener, MokyaKeys, MieNative
-│       └── input/                keyboard layout & labels, touch timing
-│                                 (PressTracker), candidate paging (StripPaging),
-│                                 HardwareKeyMapper, EditorPolicy
+│       ├── input/                keyboard layout & labels, touch timing
+│       │                         (PressTracker), picking a symbol by sliding
+│       │                         (PhonemeSlide), candidate rows (CandidateGrid),
+│       │                         HardwareKeyMapper, EditorPolicy
+│       └── fieldtest/            field-test checklist, report, trace ring
 ├── licenses/                     LGPL-2.1 and CC BY-SA 4.0 texts (dictionary data)
 ├── LICENSE                       Apache License 2.0
 └── NOTICE
@@ -117,10 +134,42 @@ CI (`.github/workflows/android.yml`) runs on every push and pull request:
 - `assembleDebug`, plus checks that the dictionary is stored uncompressed,
   the JNI library exists for every ABI and the licence texts are packaged.
   The debug APK is kept for 30 days as the run's `mokya-ime-debug-<commit>`
-  artifact. Each run signs it with a new debug key, so uninstall the
-  previous build before installing a newer one;
-- the end-to-end tests on an API 34 emulator. These type through injected
-  hardware keys and touches on the on-screen keyboard.
+  artifact. It is signed with a fixed debug key, restored from the
+  `MOKYA_DEBUG_KEYSTORE_B64` secret (base64 of a keystore with the SDK's
+  debug passwords and alias), so a newer build installs over an older one
+  and keeps the learned words. Without the secret (forks) each run uses a
+  new key. Locally, `-Pmokya.debugKeystore=/path/to/keystore` (or the
+  `MOKYA_DEBUG_KEYSTORE` environment variable) signs with the same key;
+- the end-to-end tests on API 34 and API 36 emulators (API 35 made the IME
+  window edge to edge). These type through injected hardware keys and
+  touches on the on-screen keyboard.
+
+The end-to-end tests can be run again on the same install, and on a phone
+in use: each test sets the learned words aside, types with none, and puts
+them back, saving nothing meanwhile. They do switch the keyboard to Mokya
+IME and type into the setup screen's field.
+
+## Testing on a device
+
+Debug builds add a second launcher entry, **Mokya field test**, for
+testing in real apps:
+
+- **Checklist.** The device test plan by section, each item answered
+  pass / fail / skip (ergonomics: rated 1–5) with a note. Answers stay on
+  the phone until reset. The items are string arrays in
+  `app/src/debug/res/values*/strings.xml`, written `id|label`;
+  `FieldTestStringsSyncTest` checks that every language has the same ids.
+- **Diagnostics log.** Off by default. When on, the keyboard keeps its
+  trace (lifecycle, keys, touches, insets, configuration changes; never
+  the text) in memory and in logcat (`adb logcat -s MokyaTrace`), and
+  counts notable events, such as the candidate strip's container having
+  to be made visible. In password and no-learning (incognito) fields keys
+  and touches are not recorded.
+- **Environment.** Device, Android version, display and font scale,
+  navigation mode, long-press timeout, hardware keyboard and IME settings.
+- **Report.** Markdown with all of the above, to share or save. The last
+  one is also kept for adb:
+  `adb shell run-as io.github.tengigabytes.mokyaime cat files/fieldtest/report.md`.
 
 ## How the service drives the engine
 
@@ -141,6 +190,21 @@ composing text and UI are refreshed once the call returns.
 | `now_ms` | `SystemClock.uptimeMillis()` (same base as `KeyEvent.getEventTime()`) |
 | `tick` | `Handler` every 20 ms, only while `MieEngine.needsTick` (something pending, or SYM1 held for the long-press picker) |
 
+What the touch keyboard adds on top of the engine:
+
+- A Bopomofo symbol picked by sliding or holding goes to the engine as an
+  explicit phoneme flag, as a Dachen hardware key does. The device's way to
+  reach the second symbol (a second long press within 800 ms) is not used.
+- The engine cannot be told which punctuation mark or, in EN, which letter
+  of a key is meant, so those picks are typed as text
+  (`KeyboardLayout.pickIsPhoneme`), after committing what is pending the
+  way OK would. Letters spelled in EN are therefore not predicted on.
+- Holding ，SYM opens the engine's picker as on the device; with the
+  on-screen keyboard up, the keyboard shows a page for it
+  (`KeyboardLayout.pickerRows`) instead of the strip listing its sixteen
+  cells. A key of that page closes the picker with a short SYM1 press and
+  types its symbol as text.
+
 The dictionary is a read-only memory map of the APK asset. The native
 engine holds a global reference to that buffer for its whole life. The
 personalised LRU is loaded in `onCreate` and saved atomically to
@@ -155,6 +219,9 @@ Known limitations:
 - LRU timestamps use uptime, which restarts at boot; MokyaLora behaves the
   same.
 - The on-screen keyboard has no accessibility (TalkBack) support yet.
+- With the candidates opened in rows, the hardware Up / Down keys still
+  move by one engine page, not by one row.
+- In EN there is no caps lock: holding a key and sliding types one capital.
 
 ## Licence
 

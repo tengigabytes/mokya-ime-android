@@ -41,6 +41,10 @@ class MieEngine private constructor(private var handle: Long) : AutoCloseable {
         /** Candidates per page (`ImeLogic::kPageSize`). */
         const val PAGE_SIZE = 5
 
+        /** `LruCache::kHeaderSize`: magic (4), version (2), entry count (2). */
+        private const val LRU_HEADER_SIZE = 8
+        private const val LRU_COUNT_OFFSET = 6
+
         /**
          * Creates an engine over a MIE4 v4 dictionary.
          *
@@ -125,8 +129,20 @@ class MieEngine private constructor(private var handle: Long) : AutoCloseable {
     /** Serialises the personalised LRU (LRU1 format) for persistence. */
     fun serializeLru(): ByteArray = MieNative.serializeLru(h())
 
-    /** Restores the LRU; returns false (and leaves it empty) if [data] is invalid. */
+    /**
+     * Restores the LRU. Returns false if [data] is invalid: the LRU is then
+     * as it was, or empty when the header was fine and an entry was not.
+     */
     fun loadLru(data: ByteArray): Boolean = MieNative.loadLru(h(), data)
+
+    /** Forgets everything learned: loads an LRU1 blob with no entries. */
+    fun clearLru() {
+        // The engine's own header (magic, version), with the entry count set to 0.
+        val empty = serializeLru().copyOf(LRU_HEADER_SIZE)
+        empty[LRU_COUNT_OFFSET] = 0
+        empty[LRU_COUNT_OFFSET + 1] = 0
+        check(loadLru(empty)) { "the engine rejected an empty LRU" }
+    }
 
     /** Frees the native engine. Further calls throw [IllegalStateException]. */
     override fun close() {

@@ -36,12 +36,14 @@ class PressTrackerTest {
 
     private val scheduler = FakeScheduler()
     private val events = mutableListOf<String>()
-    private val tracker = PressTracker(scheduler) { kc, pressed, flags ->
+    private val tracker = PressTracker(scheduler, onHold = { events += "hold:$it@${scheduler.now}" }) { kc, pressed, flags ->
         events += "${if (pressed) "down" else "up"}:$kc:$flags@${scheduler.now}"
     }
 
     private val q = MokyaKeys.KEY_Q
-    private val long = MokyaKeys.KEY_FLAG_LONG_PRESS
+    private val first = MokyaKeys.keyFlagPhoneme(0)
+    private val second = MokyaKeys.keyFlagPhoneme(1)
+    private val third = MokyaKeys.keyFlagPhoneme(2)
 
     @Test
     fun deferredShortTapEmitsPressAndReleaseOnRelease() {
@@ -54,13 +56,69 @@ class PressTrackerTest {
     }
 
     @Test
-    fun deferredHoldEmitsLongPressAtThreshold() {
+    fun deferredHoldTypesTheFirstSymbolOnRelease() {
         tracker.down(0, q, deferPress = true)
         scheduler.advance(PressTracker.LONG_PRESS_MS)
-        assertEquals(listOf("down:$q:$long@500"), events)
+        assertEquals(listOf("hold:0@500"), events)
         scheduler.advance(300)
         tracker.up(0)
-        assertEquals(listOf("down:$q:$long@500", "up:$q:$long@800"), events)
+        assertEquals(listOf("hold:0@500", "down:$q:$first@800", "up:$q:$first@800"), events)
+    }
+
+    @Test
+    fun holdingAKeyOfThreeTypesTheMiddleSymbol() {
+        val k9 = MokyaKeys.KEY_9   // ㄞㄢㄦ
+        tracker.down(0, k9, deferPress = true)
+        scheduler.advance(PressTracker.LONG_PRESS_MS)
+        tracker.up(0)
+        assertEquals(listOf("hold:0@500", "down:$k9:$second@500", "up:$k9:$second@500"), events)
+    }
+
+    @Test
+    fun slidingPicksASymbolWithoutWaiting() {
+        tracker.down(0, q, deferPress = true)
+        scheduler.advance(80)
+        tracker.pick(0, 1)
+        tracker.up(0)
+        assertEquals(listOf("down:$q:$second@80", "up:$q:$second@80"), events)
+    }
+
+    @Test
+    fun slidingWhileHeldReplacesTheHeldSymbol() {
+        val k9 = MokyaKeys.KEY_9
+        tracker.down(0, k9, deferPress = true)
+        scheduler.advance(600)
+        tracker.pick(0, 2)
+        tracker.up(0)
+        assertEquals(listOf("hold:0@500", "down:$k9:$third@600", "up:$k9:$third@600"), events)
+    }
+
+    @Test
+    fun slidingBackBeforeTheHoldMarkIsAFuzzyTap() {
+        tracker.down(0, q, deferPress = true)
+        tracker.pick(0, 1)
+        tracker.pick(0, null)
+        scheduler.advance(100)
+        tracker.up(0)
+        assertEquals(listOf("down:$q:0@100", "up:$q:0@100"), events)
+    }
+
+    @Test
+    fun pickIsIgnoredOnKeysThatPressOnDown() {
+        val ok = MokyaKeys.KEY_OK
+        tracker.down(0, ok, deferPress = false)
+        tracker.pick(0, 1)
+        tracker.up(0)
+        assertEquals(listOf("down:$ok:0@0", "up:$ok:0@0"), events)
+    }
+
+    @Test
+    fun cancelDropsAHeldOrPickedKey() {
+        tracker.down(0, q, deferPress = true)
+        scheduler.advance(PressTracker.LONG_PRESS_MS)
+        tracker.pick(0, 1)
+        tracker.cancel(0)
+        assertEquals(listOf("hold:0@500"), events)
     }
 
     @Test
@@ -100,7 +158,7 @@ class PressTrackerTest {
         scheduler.advance(PressTracker.LONG_PRESS_MS)
         tracker.cancelAll()
         assertEquals(
-            setOf("down:${MokyaKeys.KEY_OK}:0@0", "up:${MokyaKeys.KEY_OK}:0@500", "down:$q:$long@500", "up:$q:$long@500"),
+            setOf("down:${MokyaKeys.KEY_OK}:0@0", "up:${MokyaKeys.KEY_OK}:0@500", "hold:2@500"),
             events.toSet(),
         )
         assertFalse(tracker.isActive)

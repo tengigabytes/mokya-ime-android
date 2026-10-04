@@ -105,6 +105,10 @@ tasks.test {
     systemProperty("mokya.testDict", testDictFile.get().asFile.path)
     systemProperty("mokya.keycodeHeader", libmieDir.file("include/mie/keycode.h").asFile.path)
     systemProperty("mokya.keyTableSource", libmieDir.file("src/ime_keys.cpp").asFile.path)
+    // The field-test page's strings (debug builds), for FieldTestStringsSyncTest.
+    val fieldTestRes = layout.projectDirectory.dir("../app/src/debug/res")
+    inputs.dir(fieldTestRes).withPathSensitivity(PathSensitivity.RELATIVE)
+    systemProperty("mokya.fieldTestRes", fieldTestRes.asFile.path)
     // Optional: full dictionary for RealDictionarySmokeTest.
     providers.gradleProperty("mokya.realDict").orNull?.let { systemProperty("mokya.realDict", it) }
 }

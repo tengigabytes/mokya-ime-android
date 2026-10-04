@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Field-test page (debug builds only). Checklist entries are "id|label":
+     keep the ids identical in every language (FieldTestStringsSyncTest). -->
+<resources>
+    <string name="ft_app_name">Mokya field test</string>
+    <string name="ft_report_title">Mokya IME field test</string>
+    <string name="ft_intro">Record what you find while using Mokya IME in real apps. Results are kept on the phone until you reset them. With the diagnostics log on, the keyboard records its events (keys, touches, layout; never the text, and nothing at all in password or incognito fields) so a report can show what happened. Share or save the report when you are done; the last one is also kept for adb:\nadb shell run-as io.github.tengigabytes.mokyaime cat files/fieldtest/report.md</string>
+    <string name="ft_diagnostics">Diagnostics log</string>
+    <string name="ft_diagnostics_off">Off: nothing is recorded.</string>
+    <string name="ft_diagnostics_status">Lines kept: %1$d. Recorded since cleared: %2$d.</string>
+    <string name="ft_section_progress">%1$s  (%2$d/%3$d)</string>
+    <string name="ft_share">Share report</string>
+    <string name="ft_save">Save report…</string>
+    <string name="ft_clear_trace">Clear log</string>
+    <string name="ft_reset">Reset checklist</string>
+    <string name="ft_reset_confirm">Clear every result and note?</string>
+    <string name="ft_saved">Report saved.</string>
+    <string name="ft_save_failed">The report could not be saved.</string>
+    <string name="ft_note_hint">Note: app, field, steps…</string>
+
+    <string name="ft_environment">Environment</string>
+    <string name="ft_summary">Summary</string>
+    <string name="ft_results">Results</string>
+    <string name="ft_counters">Diagnostic counters</string>
+    <string name="ft_trace">Diagnostics log</string>
+    <string name="ft_section">Section</string>
+    <string name="ft_answered">Answered</string>
+    <string name="ft_pass">Pass</string>
+    <string name="ft_fail">Fail</string>
+    <string name="ft_skip">Skip</string>
+    <string name="ft_average">Average</string>
+    <string name="ft_not_tested">Not tested</string>
+    <string name="ft_trace_off">The diagnostics log was off.</string>
+    <string name="ft_rating_hint">1 = poor, 5 = excellent</string>
+
+    <string name="ft_section_layout">1. Display and layout</string>
+    <string name="ft_section_apps">2. Typing in real apps</string>
+    <string name="ft_section_touch">3. Touch Bopomofo input</string>
+    <string name="ft_section_english">4. English and ABC</string>
+    <string name="ft_section_hardware">5. Hardware keyboard</string>
+    <string name="ft_section_learning">6. Learning and privacy</string>
+    <string name="ft_section_stability">7. Stability and performance</string>
+    <string name="ft_section_ergonomics">8. Ergonomics (rate 1–5)</string>
+    <string name="ft_section_accessibility">9. Accessibility (known limits)</string>
+
+    <string-array name="ft_items_layout">
+        <item>layout.strip_switch_app|The candidate strip still appears after switching apps</item>
+        <item>layout.strip_rotate|The candidate strip still appears after rotating the screen</item>
+        <item>layout.strip_unlock|The candidate strip still appears after locking and unlocking</item>
+        <item>layout.bottom_gesture|Gesture navigation: the bottom row is not covered by the gesture bar</item>
+        <item>layout.bottom_buttons|Three-button navigation: the bottom row is not covered by the navigation bar</item>
+        <item>layout.field_visible|The strip does not cover the field being typed in (e.g. a chat app\'s input box)</item>
+        <item>layout.dark|Dark mode looks right</item>
+        <item>layout.landscape|Landscape looks right</item>
+        <item>layout.large_text|Larger system font and display size still fit</item>
+    </string-array>
+
+    <string-array name="ft_items_apps">
+        <item>apps.line|Typing in LINE</item>
+        <item>apps.messenger|Typing in Messenger</item>
+        <item>apps.gmail|Typing in Gmail</item>
+        <item>apps.chrome_url|Typing in the Chrome address bar</item>
+        <item>apps.google_search|Typing in Google Search</item>
+        <item>apps.notes|Typing in a notes app</item>
+        <item>apps.ok_action|With nothing pending, OK shows the field\'s action (Send, Search…)</item>
+        <item>apps.ok_no_double_send|Pressing OK once more after picking a word does not send by mistake</item>
+        <item>apps.tap_away|Tapping elsewhere in the field while composing drops the Bopomofo cleanly and leaves the cursor where you tapped</item>
+        <item>apps.replace_selection|Typing over selected text replaces it</item>
+        <item>apps.insert_middle|Inserting in the middle of text</item>
+        <item>apps.web_forms|Web forms and Chrome text fields behave</item>
+    </string-array>
+
+    <string-array name="ft_items_touch">
+        <item>touch.fuzzy_first_page|Tapping (fuzzy match) puts common words on the first page</item>
+        <item>touch.long_press_feedback|A 0.5 s hold vibrates, turns the key amber and shows its symbols above it</item>
+        <item>touch.long_press_timing|0.5 s is the right hold time (note: too long / too short)</item>
+        <item>touch.slide_pick|Sliding left / right on a key picks its left / right symbol, without waiting</item>
+        <item>touch.slide_accidental|Fast tapping does not pick a symbol by accident</item>
+        <item>touch.slide_edge|Sliding on the edge columns does not trigger the system back gesture</item>
+        <item>touch.hold_three|ㄞㄢㄦ: hold for ㄢ, left for ㄞ, right for ㄦ</item>
+        <item>touch.tap_candidate|Tapping a candidate enters it</item>
+        <item>touch.swipe|Swiping the candidate row scrolls it</item>
+        <item>touch.expand|▲ opens every candidate in rows; picking one closes them</item>
+        <item>touch.del_repeat|Holding ⌫ keeps deleting</item>
+        <item>touch.sym1|，SYM: tap types a comma, hold opens the symbol page</item>
+        <item>touch.sym1_slide|，SYM: slide left for 、, right for ：</item>
+        <item>touch.sym_page|Symbol page: digits on top, one tap types and goes back; the corner key goes back without typing</item>
+        <item>touch.sym2|。？！ cycles on repeated taps</item>
+        <item>touch.sym2_slide|。？！: slide left for 。, right for ！, hold for ？</item>
+    </string-array>
+
+    <string-array name="ft_items_english">
+        <item>en.prediction|EN mode predicts English words on the half-keyboard</item>
+        <item>en.slide_letter|EN: sliding on a key types its left / right letter; hold first for a capital</item>
+        <item>en.slide_spacing|EN: spelling a word by sliding puts a space before it, not inside it</item>
+        <item>en.slide_marks|EN: ; , : and . ? ! slide like their Chinese keys, each followed by a space</item>
+        <item>abc.shift|ABC: ⇧ once for one capital, twice to lock</item>
+        <item>abc.number_row|ABC: number row and its ⇧ symbols</item>
+        <item>abc.symbol_page|ABC: #+= symbol page</item>
+        <item>abc.auto_fields|Password, e-mail, URL, phone and number fields start in ABC</item>
+    </string-array>
+
+    <string-array name="ft_items_hardware">
+        <item>hw.dachen|Dachen Zhuyin typing</item>
+        <item>hw.space_tone|Space types the first tone</item>
+        <item>hw.enter_select|Enter picks the word</item>
+        <item>hw.arrows_tab|Arrow keys and Tab move through the candidates</item>
+        <item>hw.esc|Esc cancels</item>
+        <item>hw.ctrl_space|Ctrl+Space switches modes</item>
+        <item>hw.shift_punct|Shift types full-width punctuation</item>
+        <item>hw.numpad|Numeric keypad</item>
+        <item>hw.onscreen_setting|With a keyboard attached, the on-screen keyboard follows the system\'s \"Show on-screen keyboard\" setting</item>
+    </string-array>
+
+    <string-array name="ft_items_learning">
+        <item>learn.promote|Words you use move forward</item>
+        <item>learn.after_restart|They are still there after restarting the app</item>
+        <item>learn.after_reboot|They are still there after rebooting the phone</item>
+        <item>learn.password|Words typed in a password field are not learned</item>
+        <item>learn.incognito|Words typed in Chrome incognito are not learned</item>
+    </string-array>
+
+    <string-array name="ft_items_stability">
+        <item>perf.first_show|Time until the keyboard first appears (note the seconds)</item>
+        <item>perf.typing_lag|No lag while typing</item>
+        <item>stab.rotate_composing|Rotating the screen while composing</item>
+        <item>stab.switch_app_composing|Switching apps while composing</item>
+        <item>stab.split_screen|Split screen</item>
+        <item>stab.switch_ime|Switching to another keyboard and back</item>
+        <item>perf.battery|Battery use after a while</item>
+    </string-array>
+
+    <string-array name="ft_items_ergonomics">
+        <item>ergo.one_hand_top_row|One-handed: reaching OK and ⌫ on the top row</item>
+        <item>ergo.key_size|Key size and label legibility</item>
+        <item>ergo.haptics|Vibration strength</item>
+        <item>ergo.height|Keyboard height (how much content it covers)</item>
+        <item>ergo.vs_gboard|Compared with Gboard Zhuyin (note what is smoother or harder)</item>
+    </string-array>
+
+    <string-array name="ft_items_accessibility">
+        <item>a11y.talkback|Known: TalkBack is not supported yet</item>
+        <item>a11y.long_press_setting|Known: the system \"Touch and hold delay\" does not change our long press</item>
+    </string-array>
+</resources>

@@ -211,6 +211,22 @@ class MieEngineHostTest {
     }
 
     @Test
+    fun clearLruForgetsWhatWasLearned() {
+        val untouched = engine.serializeLru()
+        tap(MokyaKeys.KEY_A)
+        tap(MokyaKeys.KEY_C)
+        tap(MokyaKeys.KEY_OK)
+        val learned = engine.serializeLru()
+        assertTrue(learned.size > untouched.size)
+
+        engine.clearLru()
+        assertTrue(engine.serializeLru().contentEquals(untouched))
+        // What was learned can be put back.
+        assertTrue(engine.loadLru(learned))
+        assertTrue(engine.serializeLru().contentEquals(learned))
+    }
+
+    @Test
     fun listenerExceptionPropagatesAndEngineSurvives() {
         recorder.throwOnCommit = IllegalStateException("boom")
         tap(MokyaKeys.KEY_A)

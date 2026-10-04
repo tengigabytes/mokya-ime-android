@@ -33,7 +33,8 @@ import org.junit.runner.RunWith
  * hardware key events and touches on the on-screen keyboard.
  *
  * Every test starts once the IME serves the field and its keyboard is on
- * screen; failures print the IME's event trace.
+ * screen, with nothing learned; what the device had learned is put back
+ * afterwards. Failures print the IME's event trace.
  */
 @RunWith(AndroidJUnit4::class)
 class ImeEndToEndTest {
@@ -69,6 +70,9 @@ class ImeEndToEndTest {
         }
         // The mode is persisted: an earlier test may have left another one.
         onMain { MokyaImeService.current!!.switchModeForTest(InputMode.SMART_ZH) }
+        // So are the learned words, which reorder the candidates: type with
+        // none, and leave those of the device as they were.
+        onMain { MokyaImeService.current!!.useEmptyLruForTest(true) }
         // Only a served field can request the keyboard.
         scenario.onActivity { activity ->
             activity.getSystemService(InputMethodManager::class.java).showSoftInput(field, 0)
@@ -78,6 +82,7 @@ class ImeEndToEndTest {
 
     @After
     fun tearDown() {
+        onMain { MokyaImeService.current?.useEmptyLruForTest(false) }
         scenario.close()
         MokyaImeService.traceForTest = null
     }
@@ -162,6 +167,49 @@ class ImeEndToEndTest {
     }
 
     @Test
+    fun abcSymbolPageTypesBracketsAndReturns() {
+        restartField(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        waitForQwerty()
+        tapText("a")
+        tapPage()
+        waitFor("symbol page") { onMain { MokyaImeService.current!!.textKeyCenterOnScreen("[") != null } }
+        tapText("[")
+        tapText("=")
+        tapText("]")
+        tapPage()
+        waitForQwerty()
+        tapText("b")
+        waitForText("a[=]b")
+    }
+
+    @Test
+    fun diagnosticsLeaveOutWhatIsTypedInPasswordFields() {
+        val context = instrumentation.targetContext
+        onMain {
+            Diagnostics.setEnabled(context, true)
+            Diagnostics.ring!!.clear()
+        }
+        try {
+            restartField(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+            waitForQwerty()
+            onMain { MokyaImeService.traceForTest = null }   // as on a device: diagnostics only
+            tapText("a")
+            tapText("b")
+            waitForText("ab")
+            val lines = onMain { Diagnostics.ring!!.lines() }
+            val dump = lines.joinToString("\n", prefix = "diagnostics:\n")
+            assertTrue(dump, lines.any { "sensitive=true" in it })
+            assertTrue(dump, lines.any { "input in a sensitive field" in it })
+            assertTrue(dump, lines.none { "touch down" in it })
+        } finally {
+            onMain {
+                MokyaImeService.traceForTest = trace
+                Diagnostics.setEnabled(context, false)
+            }
+        }
+    }
+
+    @Test
     fun phoneFieldTypesOnTheNumberRow() {
         restartField(InputType.TYPE_CLASS_PHONE)
         waitForQwerty()
@@ -180,44 +228,130 @@ class ImeEndToEndTest {
     }
 
     @Test
-    fun touchPagesCandidatesAndTapsOne() {
+    fun touchExpandsCandidatesAndTapsOne() {
         touch(MokyaKeys.KEY_A)   // ㄇㄋ
         touch(MokyaKeys.KEY_C)   // ㄏㄒ
         waitForText("ㄇㄋ, ㄏㄒ")
         val strip = { MokyaImeService.current!!.candidateStripForTest!! }
-        waitFor("more candidates than fit") { onMain { strip().settledForTest && strip().canPageForwardForTest } }
+        waitFor("more candidates than fit") { onMain { strip().settledForTest && strip().canExpandForTest } }
 
         onMain { MokyaImeService.trace { "test: " + strip().geometryForTest() } }
-        tapAt(onMain { strip().pageButtonCenterOnScreen(forward = true) })
-        var lastX = -1
-        waitFor("strip paged") {
-            val x = onMain { strip().scrollXForTest }
-            (x > 0 && x == lastX).also { lastX = x }   // scrolled, and the animation ended
-        }
-        val index = onMain { strip().firstVisibleItemForTest() }
+        tapAt(onMain { strip().expandButtonCenterOnScreen() })
+        waitFor("strip expanded") { onMain { strip().expandedForTest && strip().settledForTest } }
+        onMain { MokyaImeService.trace { "test: " + strip().geometryForTest() } }
+        val index = onMain { strip().firstItemOfRowForTest(1) }
+        assertTrue("first candidate of the second row, got $index\n${traceDump()}", index > 0)
         val word = onMain { MokyaImeService.current!!.candidatesForTest()[index] }
-        assertTrue("first candidate of the second page, got $index", index > 0)
         tapAt(onMain { strip().itemCenterOnScreen(index)!! })
         waitForText(word)
+        waitFor("strip collapsed") { onMain { !strip().expandedForTest } }
     }
 
     @Test
-    fun touchLongPressPinsAndCyclesPhoneme() {
-        // Long press → primary ㄆ; a second long press whose 500 ms mark
-        // falls within 800 ms of the first one cycles to the secondary ㄊ.
-        touch(MokyaKeys.KEY_Q, holdMs = 550)
-        touch(MokyaKeys.KEY_Q, holdMs = 550)
+    fun touchHoldAndSlidePickPhonemes() {
+        touch(MokyaKeys.KEY_Q, holdMs = 600)            // held: the first symbol
+        waitForText("ㄆ")
+        touch(MokyaKeys.KEY_DEL)
+        waitForText("")
+        slide(MokyaKeys.KEY_Q, dxDp = 40f)              // slid right, no wait: the second
         waitForText("ㄊ")
         touch(MokyaKeys.KEY_DEL)
         waitForText("")
+        slide(MokyaKeys.KEY_Q, dxDp = -40f)             // slid left: the first
+        waitForText("ㄆ")
+        touch(MokyaKeys.KEY_DEL)
+        waitForText("")
+    }
+
+    @Test
+    fun touchKeyOfThreePhonemes() {
+        touch(MokyaKeys.KEY_9, holdMs = 600)            // ㄞㄢㄦ held: the middle one
+        waitForText("ㄢ")
+        touch(MokyaKeys.KEY_DEL)
+        waitForText("")
+        slide(MokyaKeys.KEY_9, dxDp = -40f, holdMs = 600)   // held, then slid left
+        waitForText("ㄞ")
+        touch(MokyaKeys.KEY_DEL)
+        waitForText("")
+        slide(MokyaKeys.KEY_9, dxDp = 40f)
+        waitForText("ㄦ")
+        touch(MokyaKeys.KEY_DEL)
+        waitForText("")
+    }
+
+    @Test
+    fun englishSlideSpellsLettersAndHoldingGivesCapitals() {
+        onMain { MokyaImeService.current!!.switchModeForTest(InputMode.SMART_EN) }
+        keys("hello")
+        key(KeyEvent.KEYCODE_ENTER)
+        waitForText("Hello")
+        slide(MokyaKeys.KEY_Q, dxDp = 40f)                  // a new word: a space, then w
+        waitForText("Hello w")
+        slide(MokyaKeys.KEY_Q, dxDp = -40f)                 // the same word goes on
+        waitForText("Hello wq")
+        slide(MokyaKeys.KEY_E, dxDp = 40f, holdMs = 600)    // held, then slid: the capital
+        waitForText("Hello wqR")
+        slide(MokyaKeys.KEY_1, dxDp = 40f)                  // a digit takes no space
+        waitForText("Hello wqR2")
+        slide(MokyaKeys.KEY_Q, dxDp = -40f)                 // and the word goes on after it
+        waitForText("Hello wqR2q")
+    }
+
+    @Test
+    fun englishMarksSlideAndKeepTheirSpace() {
+        onMain { MokyaImeService.current!!.switchModeForTest(InputMode.SMART_EN) }
+        keys("hello")
+        slide(MokyaKeys.KEY_SYM1, dxDp = -40f)              // commits the word, then "; "
+        waitForText("Hello; ")
+        slide(MokyaKeys.KEY_SYM1, dxDp = 40f)
+        waitForText("Hello; : ")
+        touch(MokyaKeys.KEY_SYM2, holdMs = 600)             // held: the middle mark
+        waitForText("Hello; : ? ")
+        slide(MokyaKeys.KEY_SYM2, dxDp = 40f)
+        waitForText("Hello; : ? ! ")
+        slide(MokyaKeys.KEY_SYM2, dxDp = -40f)
+        waitForText("Hello; : ? ! . ")
+        assertTrue("picker opened\n${traceDump()}", onMain { !MokyaImeService.current!!.pickerActiveForTest })
+    }
+
+    @Test
+    fun touchSentenceMarks() {
+        slide(MokyaKeys.KEY_SYM2, dxDp = 40f)               // slid right
+        waitForText("！")
+        touch(MokyaKeys.KEY_SYM2, holdMs = 600)             // held: the middle one
+        waitForText("！？")
+        slide(MokyaKeys.KEY_SYM2, dxDp = -40f)
+        waitForText("！？。")
+    }
+
+    @Test
+    fun touchCommaKeySlides() {
+        touch(MokyaKeys.KEY_SYM1)
+        waitForText("，")
+        slide(MokyaKeys.KEY_SYM1, dxDp = -40f)
+        waitForText("，、")
+        slide(MokyaKeys.KEY_SYM1, dxDp = 40f)
+        waitForText("，、：")
+        assertTrue("picker opened\n${traceDump()}", onMain { !MokyaImeService.current!!.pickerActiveForTest })
     }
 
     @Test
     fun touchSym1LongPressOpensPicker() {
         touch(MokyaKeys.KEY_SYM1, holdMs = 800)
         assertTrue("symbol picker not open\n${traceDump()}", onMain { MokyaImeService.current!!.pickerActiveForTest })
-        touch(MokyaKeys.KEY_OK)                 // first cell
-        waitForText("「")
+        tapText("、")                            // the picker's page: one symbol, then back
+        waitForText("、")
+        waitFor("half-keyboard back") {
+            onMain { !MokyaImeService.current!!.pickerActiveForTest && MokyaImeService.current!!.keyCenterOnScreen(MokyaKeys.KEY_Q) != null }
+        }
+        touch(MokyaKeys.KEY_SYM1, holdMs = 800)
+        tapText("7")                            // digits are on its top row
+        waitForText("、7")
+        touch(MokyaKeys.KEY_SYM1, holdMs = 800)
+        waitFor("picker page") { onMain { MokyaImeService.current!!.textKeyCenterOnScreen("「") != null } }
+        touch(MokyaKeys.KEY_SYM1)               // SYM on the page: back without typing
+        waitFor("picker closed") { onMain { !MokyaImeService.current!!.pickerActiveForTest } }
+        waitForText("、7")
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────
@@ -313,6 +447,23 @@ class ImeEndToEndTest {
         tapAt(point!!, holdMs)
     }
 
+    /** Touches a key, holds it for [holdMs], slides [dxDp] sideways and lifts. */
+    private fun slide(keycode: Int, dxDp: Float, holdMs: Long = 60) {
+        onMain { MokyaImeService.trace { "test: slide $keycode by $dxDp dp after $holdMs ms" } }
+        val point = onMain { MokyaImeService.current?.keyCenterOnScreen(keycode) }
+        assertNotNull("key $keycode not on screen", point)
+        val dx = dxDp * instrumentation.targetContext.resources.displayMetrics.density
+        val down = SystemClock.uptimeMillis()
+        inject(MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, point!!.x, point.y, 0))
+        SystemClock.sleep(holdMs)
+        for (step in 1..4) {
+            inject(MotionEvent.obtain(down, SystemClock.uptimeMillis(), MotionEvent.ACTION_MOVE, point.x + dx * step / 4, point.y, 0))
+            SystemClock.sleep(10)
+        }
+        inject(MotionEvent.obtain(down, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, point.x + dx, point.y, 0))
+        instrumentation.waitForIdleSync()
+    }
+
     private fun restartField(inputType: Int, imeOptions: Int = EditorInfo.IME_NULL) {
         scenario.onActivity { activity ->
             field.inputType = inputType
@@ -336,6 +487,12 @@ class ImeEndToEndTest {
     private fun tapShift() {
         val point = onMain { MokyaImeService.current?.shiftKeyCenterOnScreen() }
         assertNotNull("Shift not on screen", point)
+        tapAt(point!!)
+    }
+
+    private fun tapPage() {
+        val point = onMain { MokyaImeService.current?.pageKeyCenterOnScreen() }
+        assertNotNull("page key not on screen", point)
         tapAt(point!!)
     }
 

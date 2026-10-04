@@ -2,6 +2,7 @@
 package io.github.tengigabytes.mokyaime
 
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.graphics.PointF
 import android.graphics.Typeface
 import android.inputmethodservice.InputMethodService
@@ -84,15 +85,39 @@ class MokyaImeService : InputMethodService(), MieListener {
         @Volatile
         internal var traceForTest: MutableList<String>? = null
 
+        /** True while a test or the device [Diagnostics] record the trace. */
+        internal val tracing: Boolean get() = traceForTest != null || Diagnostics.ring != null
+
         /**
-         * Records an event for [traceForTest], and in logcat (tag MokyaTrace)
-         * so CI can print the trace of passing runs too; main thread only.
+         * True while the editor must not learn from what is typed (passwords,
+         * incognito): [traceInput] then keeps keys out of the diagnostics.
+         */
+        @Volatile
+        internal var sensitiveInput = false
+
+        /**
+         * Records an event for [traceForTest] and the device [Diagnostics],
+         * and in logcat (tag MokyaTrace) so CI can print the trace of passing
+         * runs too; main thread only.
          */
         internal inline fun trace(event: () -> String) {
-            val trace = traceForTest ?: return
+            val test = traceForTest
+            val ring = Diagnostics.ring
+            if (test == null && ring == null) return
             val line = "${SystemClock.uptimeMillis()} ${event()}"
-            trace.add(line)
+            test?.add(line)
+            ring?.add(line)
             Log.i("MokyaTrace", line)
+        }
+
+        /**
+         * As [trace], for events that tell what is typed (keys, touch
+         * positions). In a [sensitiveInput] field the device diagnostics get
+         * a placeholder instead; tests, which type into their own field, get
+         * the event.
+         */
+        internal inline fun traceInput(event: () -> String) {
+            if (sensitiveInput && traceForTest == null) trace { "input in a sensitive field (not recorded)" } else trace(event)
         }
     }
 
@@ -142,6 +167,9 @@ class MokyaImeService : InputMethodService(), MieListener {
     /** The engine reported a composition change during the current call. */
     private var compositionDirty = false
 
+    /** EN: the last thing typed was a letter of a word being spelled ([commitSpelledLetter]). */
+    private var spelling = false
+
     // ── Lifecycle ────────────────────────────────────────────────────────
 
     override fun onCreate() {
@@ -149,6 +177,7 @@ class MokyaImeService : InputMethodService(), MieListener {
         current = this
         lruStore = LruStore(File(filesDir, LRU_FILE_NAME))
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+        Diagnostics.init(this)
         userMode = InputMode.entries.getOrElse(prefs.getInt(PREF_MODE, 0)) { InputMode.SMART_ZH }
         engine = try {
             MieEngine.create(DictionaryAsset.map(assets), this)
@@ -179,7 +208,15 @@ class MokyaImeService : InputMethodService(), MieListener {
     override fun onCreateInputView(): View =
         KeyboardView(this).also { view ->
             view.onKey = { keycode, pressed, flags -> dispatchKey(keycode, pressed, flags) }
-            view.onText = ::commitLiteral
+            view.onKeyHeld = { keycode, sinceMs -> dispatchKey(keycode, true, eventTimeMs = sinceMs) }
+            view.onText = { text ->
+                closePicker()   // a key of the picker's page: it types one symbol and goes back
+                if (engine?.mode == InputMode.SMART_EN && text.length == 1 && text[0].isLetterOrDigit()) {
+                    commitSpelledLetter(text)
+                } else {
+                    commitLiteral(text)
+                }
+            }
             engine?.let { view.mode = it.mode }
             keyboardView = view
         }
@@ -204,8 +241,11 @@ class MokyaImeService : InputMethodService(), MieListener {
         // With the keyboard up the strip is always shown: let the app's content
         // end above it, so it never covers the field being typed into. (The
         // strip alone, for a hardware keyboard, still floats over the app.)
-        if (isInputViewShown) outInsets.contentTopInsets = outInsets.visibleTopInsets
-        if (traceForTest != null) {   // test diagnostics: where the IME accepts touches
+        // The rows of an expanded strip float too, so the app does not resize.
+        if (isInputViewShown) {
+            outInsets.contentTopInsets = outInsets.visibleTopInsets + (candidateStrip?.expandedExtraHeight ?: 0)
+        }
+        if (tracing) {   // diagnostics: where the IME accepts touches
             val now = "insets content=${outInsets.contentTopInsets} visible=${outInsets.visibleTopInsets} " +
                 "touchable=${outInsets.touchableInsets} region=${outInsets.touchableRegion.bounds}"
             if (now != lastInsetsTrace) {
@@ -217,9 +257,11 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     override fun onStartInput(attribute: EditorInfo, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
+        sensitiveInput = EditorPolicy.forbidsLearning(attribute.inputType, attribute.imeOptions)
         trace {
-            "startInput restarting=$restarting field=${attribute.fieldId} type=0x${attribute.inputType.toString(16)} " +
-                "sel=${attribute.initialSelStart}..${attribute.initialSelEnd}"
+            "startInput restarting=$restarting pkg=${attribute.packageName} field=${attribute.fieldId} " +
+                "type=0x${attribute.inputType.toString(16)} options=0x${attribute.imeOptions.toString(16)} " +
+                "sensitive=$sensitiveInput sel=${attribute.initialSelStart}..${attribute.initialSelEnd}"
         }
         // Only matters when input restarts in the same editor: a new editor
         // starts with an empty engine (onFinishInput aborted it).
@@ -231,7 +273,7 @@ class MokyaImeService : InputMethodService(), MieListener {
         val required = EditorPolicy.requiredMode(attribute.inputType)
         editorForcesMode = required != null
         switchMode(required ?: userMode)
-        lruSnapshot = if (EditorPolicy.forbidsLearning(attribute.inputType, attribute.imeOptions)) {
+        lruSnapshot = if (sensitiveInput) {
             engine?.serializeLru()
         } else {
             null
@@ -260,12 +302,28 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     override fun onWindowShown() {
         super.onWindowShown()
+        trace { "windowShown" }
         refreshUi()
+    }
+
+    override fun onWindowHidden() {
+        trace { "windowHidden" }
+        super.onWindowHidden()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        trace {
+            val night = (newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            "configuration orientation=${newConfig.orientation} night=$night fontScale=${newConfig.fontScale} " +
+                "screen=${newConfig.screenWidthDp}x${newConfig.screenHeightDp}dp hardKeyboardHidden=${newConfig.hardKeyboardHidden}"
+        }
+        super.onConfigurationChanged(newConfig)
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
         trace { "finishInputView finishingInput=$finishingInput" }
         keyboardView?.cancelTouches()
+        candidateStrip?.collapse()
         super.onFinishInputView(finishingInput)
     }
 
@@ -278,6 +336,7 @@ class MokyaImeService : InputMethodService(), MieListener {
         saveLru()
         resetTracking(-1, -1)
         consumedKeyDowns.clear()
+        sensitiveInput = false
         super.onFinishInput()
     }
 
@@ -299,7 +358,7 @@ class MokyaImeService : InputMethodService(), MieListener {
         eventTimeMs: Long = SystemClock.uptimeMillis(),
     ) {
         val e = engine ?: return
-        trace { "key $keycode pressed=$pressed flags=$flags" }
+        traceInput { "key $keycode pressed=$pressed flags=$flags" }
         if ((keycode == MokyaKeys.KEY_UP || keycode == MokyaKeys.KEY_DOWN) && !e.pickerActive) {
             val count = e.candidates().size
             if (count > 0) {
@@ -403,6 +462,23 @@ class MokyaImeService : InputMethodService(), MieListener {
     private fun Int.toKeyChar(): Char? =
         if (this > 0 && this <= 0xFFFF && (this and KeyCharacterMap.COMBINING_ACCENT) == 0) toChar() else null
 
+    /**
+     * EN: types a letter or digit picked on its key, to spell a word the
+     * dictionary does not predict. The first letter after anything else
+     * starts a new word, with a space before it where the engine would put
+     * one before a predicted word; what follows continues it. A digit never
+     * gets a space (v2, R2D2).
+     */
+    private fun commitSpelledLetter(letter: String) {
+        runEngine { e ->
+            if (e.hasPending || e.candidates().isNotEmpty()) tap(e, MokyaKeys.KEY_OK, SystemClock.uptimeMillis())
+            val before = currentInputConnection?.getTextBeforeCursor(1, 0)
+            val newWord = letter[0].isLetter() && !spelling && !before.isNullOrEmpty() && before.last().isLetterOrDigit()
+            commitToEditor(if (newWord) " $letter" else letter)
+            spelling = true
+        }
+    }
+
     /** Commits pending input the way OK would, then inserts [text]. */
     private fun commitLiteral(text: String) {
         runEngine { e ->
@@ -411,7 +487,13 @@ class MokyaImeService : InputMethodService(), MieListener {
                 e.hasPending || e.candidates().isNotEmpty() -> tap(e, MokyaKeys.KEY_OK, SystemClock.uptimeMillis())
             }
             commitToEditor(text)
+            spelling = false
         }
+    }
+
+    /** Closes the SYM1 picker without typing, as a short SYM1 press does. */
+    private fun closePicker() {
+        if (engine?.pickerActive == true) runEngine { tap(it, MokyaKeys.KEY_SYM1, SystemClock.uptimeMillis()) }
     }
 
     private fun tap(e: MieEngine, keycode: Int, nowMs: Long) {
@@ -430,6 +512,7 @@ class MokyaImeService : InputMethodService(), MieListener {
     // ── MieListener: engine → editor ─────────────────────────────────────
 
     override fun onCommit(text: String) {
+        spelling = false
         if (detached) return
         if (text == "\n") {
             // Idle OK. sendKeyChar runs the editor action (send / search /
@@ -644,13 +727,20 @@ class MokyaImeService : InputMethodService(), MieListener {
         val e = engine ?: return
         keyboardView?.mode = e.mode
         val picker = e.pickerActive
-        val items = if (picker) e.pickerCells() else e.candidates()
+        keyboardView?.picker = picker
+        // With the on-screen keyboard up the picker has a page of its own there.
+        val items = when {
+            !picker -> e.candidates()
+            isInputViewShown -> emptyList()
+            else -> e.pickerCells()
+        }
         val selected = when {
             picker -> e.pickerSelected
             items.isEmpty() -> -1
             else -> e.selectedCandidate
         }
-        candidateStrip?.show(CandidateStripView.State(e.mode.indicator, items, selected, picker))
+        // The on-screen keyboard's MODE key shows the mode: leave the strip to the candidates.
+        candidateStrip?.show(CandidateStripView.State(e.mode.indicator, !isInputViewShown, items, selected, picker))
         val composing = e.hasPending || items.isNotEmpty()
         keyboardView?.composing = composing
         val showCandidates = isInputViewShown || composing || SystemClock.uptimeMillis() < modeFlashUntil
@@ -679,6 +769,7 @@ class MokyaImeService : InputMethodService(), MieListener {
     }
 
     private fun resetTracking(selStart: Int, selEnd: Int) {
+        spelling = false
         shown = NOTHING_SHOWN
         expectedReports.clear()
         expectedCursor = if (selStart >= 0 && selStart == selEnd) selEnd else -1
@@ -706,12 +797,33 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     private fun saveLru() {
         val e = engine ?: return
+        if (lruHeldForTest != null) return   // what a test types is not the user's
         lruStore.save(e.serializeLru())
     }
 
     // ── Test hooks (instrumentation tests run in this process) ───────────
 
     internal val modeForTest: InputMode? get() = engine?.mode
+
+    /** The user's learned words, set aside while a test types ([useEmptyLruForTest]). */
+    private var lruHeldForTest: ByteArray? = null
+
+    /**
+     * With [empty], the engine forgets what it learned, so a test sees the
+     * dictionary's own candidate order whatever was typed before; nothing is
+     * saved meanwhile. Without, what was learned before comes back, and
+     * what the test taught is gone.
+     */
+    internal fun useEmptyLruForTest(empty: Boolean) {
+        val e = engine ?: return
+        if (empty) {
+            if (lruHeldForTest == null) lruHeldForTest = e.serializeLru()
+            e.clearLru()
+        } else {
+            lruHeldForTest?.let { e.loadLru(it) }
+            lruHeldForTest = null
+        }
+    }
 
     /** Switches mode as if the user had picked it, so later input restarts keep it. */
     internal fun switchModeForTest(mode: InputMode) {
@@ -735,6 +847,8 @@ class MokyaImeService : InputMethodService(), MieListener {
     internal fun textKeyCenterOnScreen(normal: String): PointF? = keyboardView?.textKeyCenterOnScreen(normal)
 
     internal fun shiftKeyCenterOnScreen(): PointF? = keyboardView?.shiftKeyCenterOnScreen()
+
+    internal fun pageKeyCenterOnScreen(): PointF? = keyboardView?.pageKeyCenterOnScreen()
 
     internal val okLabelForTest: String? get() = keyboardView?.okLabelForTest
 }

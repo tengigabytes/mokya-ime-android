@@ -45,6 +45,22 @@ InputConnection mapping.
   JVM tests.
 - UI strings live in `values/strings.xml` (English) and
   `values-zh-rTW/strings.xml`; code comments and docs are in English.
+- The field-test page lives in the `debug` source set (`app/src/debug`,
+  its own strings too); its checklist entries are `id|label`, ids
+  identical in every language (`FieldTestStringsSyncTest`). The IME side
+  (`Diagnostics`, `MokyaImeService.trace`) is in `main` but records
+  nothing unless switched on.
+- Trace events that tell what is typed (keys, touch positions) go through
+  `MokyaImeService.traceInput`, which keeps them out of the diagnostics in
+  password and no-learning fields. Never trace the text itself.
+- A key with something to pick by sliding or holding
+  (`KeyboardLayout.slideChoices`) is deferred: it acts on release. Only a
+  Bopomofo pick goes to the engine, as an explicit phoneme flag
+  (`KeyboardLayout.pickIsPhoneme`); marks and EN letters are typed as text,
+  since the engine has no way to name them and is not to be changed here.
+- A view that sizes itself from window insets must ask for a layout again
+  after the pass in which they arrive (`KeyboardView.onApplyWindowInsets`):
+  insets can reach a view after the window's height was settled.
 
 ## Build and test
 
@@ -65,7 +81,10 @@ includes the IME's recent events (`MokyaImeService.traceForTest`), since
 CI only keeps the Gradle log; CI also prints the whole trace from logcat
 (tag `MokyaTrace`) after every emulator run. Wait for the IME to see an
 app-side edit before typing: `setText` restarts input asynchronously (use
-`append`).
+`append`). Each test types with no learned words and puts the device's own
+back afterwards (`MokyaImeService.useEmptyLruForTest`), so a test may
+expect the dictionary's candidate order, and must not rely on what an
+earlier test taught.
 
 CI: `.github/workflows/android.yml` runs the host tests, `assembleDebug`
 (with APK content checks) and the emulator tests on every push / PR.
