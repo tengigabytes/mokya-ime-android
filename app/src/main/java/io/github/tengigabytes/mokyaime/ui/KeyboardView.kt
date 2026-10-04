@@ -65,6 +65,16 @@ class KeyboardView @JvmOverloads constructor(
     /** True while ABC shows its symbol page instead of the letters. */
     private var symbols = false
 
+    /** True while the engine's SYM1 picker is open: shows its page ([KeyboardLayout.pickerRows]). */
+    var picker = false
+        set(value) {
+            if (field == value) return
+            field = value
+            MokyaImeService.trace { "keyboard picker page=$value" }
+            rebuild()
+            invalidate()
+        }
+
     /** True while something is pending: OK then commits it rather than running [idleOkLabel]. */
     var composing = false
         set(value) {
@@ -168,7 +178,7 @@ class KeyboardView @JvmOverloads constructor(
     }
 
     private fun buildRows(): List<List<Key>> =
-        KeyboardLayout.touchRows(mode, symbols).map { row -> row.map { Key(it) } }
+        KeyboardLayout.touchRows(mode, symbols, picker).map { row -> row.map { Key(it) } }
 
     /** New keys for the current layout; held keys keep their old Key objects, so their release still arrives. */
     private fun rebuild() {
@@ -229,7 +239,7 @@ class KeyboardView @JvmOverloads constructor(
     }
 
     private fun layoutKeys(w: Int) {
-        val halfKeyboard = mode != InputMode.DIRECT
+        val halfKeyboard = mode != InputMode.DIRECT && !picker
         var top = gap / 2
         rows.forEachIndexed { index, row ->
             val rowHeight = when {
@@ -304,10 +314,11 @@ class KeyboardView @JvmOverloads constructor(
 
     private fun label(spec: TouchKey): KeyboardLayout.Label = when (spec) {
         is TouchKey.Engine ->
-            if (spec.keycode == MokyaKeys.KEY_OK) {
-                KeyboardLayout.Label(if (composing) "OK" else idleOkLabel, "")
-            } else {
-                KeyboardLayout.label(spec.keycode, mode)
+            when {
+                spec.keycode == MokyaKeys.KEY_OK -> KeyboardLayout.Label(if (composing) "OK" else idleOkLabel, "")
+                // On the picker's page SYM1 goes back to the mode's keyboard.
+                picker && spec.keycode == MokyaKeys.KEY_SYM1 -> KeyboardLayout.Label(mode.indicator, "SYM")
+                else -> KeyboardLayout.label(spec.keycode, mode)
             }
         is TouchKey.Text -> when {
             spec.normal == " " -> KeyboardLayout.Label("␣", "")

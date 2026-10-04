@@ -11,6 +11,21 @@ import kotlin.test.assertTrue
 class KeyboardLayoutTest {
 
     @Test
+    fun pickerPageHasDigitsOnTopAndEveryMarkOfTheEnginePicker() {
+        val page = KeyboardLayout.touchRows(InputMode.SMART_ZH, picker = true)
+        assertEquals(KeyboardLayout.pickerRows, page)
+        assertEquals(KeyboardLayout.pickerRows, KeyboardLayout.touchRows(InputMode.SMART_EN, picker = true))
+        assertEquals("1234567890", page.first().joinToString("") { (it as TouchKey.Text).normal })
+        page.forEach { row -> assertEquals(KeyboardLayout.ROW_UNITS, row.sumOf { it.weight.toDouble() }.toFloat()) }
+        val typed = page.flatten().filterIsInstance<TouchKey.Text>().map { it.normal }
+        assertEquals(typed.size, typed.toSet().size)
+        // kSymPickerCells_ in libmie's src/ime_logic.cpp.
+        assertTrue(typed.containsAll("「」『』（）【】，。、；：？！…".map { "$it" }))
+        // The way out without typing: SYM1 closes the engine's picker.
+        assertEquals(listOf(MokyaKeys.KEY_SYM1), page.flatten().filterIsInstance<TouchKey.Engine>().map { it.keycode })
+    }
+
+    @Test
     fun slideChoicesAreTheSymbolsOfBopomofoKeysAndSentenceMarksInZh() {
         assertEquals(listOf("ㄍ", "ㄐ"), KeyboardLayout.slideChoices(MokyaKeys.KEY_E, InputMode.SMART_ZH))
         assertEquals(listOf("ㄞ", "ㄢ", "ㄦ"), KeyboardLayout.slideChoices(MokyaKeys.KEY_9, InputMode.SMART_ZH))

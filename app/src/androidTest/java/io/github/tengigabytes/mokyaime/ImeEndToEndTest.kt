@@ -288,8 +288,19 @@ class ImeEndToEndTest {
     fun touchSym1LongPressOpensPicker() {
         touch(MokyaKeys.KEY_SYM1, holdMs = 800)
         assertTrue("symbol picker not open\n${traceDump()}", onMain { MokyaImeService.current!!.pickerActiveForTest })
-        touch(MokyaKeys.KEY_OK)                 // first cell
-        waitForText("「")
+        tapText("、")                            // the picker's page: one symbol, then back
+        waitForText("、")
+        waitFor("half-keyboard back") {
+            onMain { !MokyaImeService.current!!.pickerActiveForTest && MokyaImeService.current!!.keyCenterOnScreen(MokyaKeys.KEY_Q) != null }
+        }
+        touch(MokyaKeys.KEY_SYM1, holdMs = 800)
+        tapText("7")                            // digits are on its top row
+        waitForText("、7")
+        touch(MokyaKeys.KEY_SYM1, holdMs = 800)
+        waitFor("picker page") { onMain { MokyaImeService.current!!.textKeyCenterOnScreen("「") != null } }
+        touch(MokyaKeys.KEY_SYM1)               // SYM on the page: back without typing
+        waitFor("picker closed") { onMain { !MokyaImeService.current!!.pickerActiveForTest } }
+        waitForText("、7")
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────

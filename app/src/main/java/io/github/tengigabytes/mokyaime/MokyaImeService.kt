@@ -205,7 +205,10 @@ class MokyaImeService : InputMethodService(), MieListener {
     override fun onCreateInputView(): View =
         KeyboardView(this).also { view ->
             view.onKey = { keycode, pressed, flags -> dispatchKey(keycode, pressed, flags) }
-            view.onText = ::commitLiteral
+            view.onText = { text ->
+                closePicker()   // a key of the picker's page: it types one symbol and goes back
+                commitLiteral(text)
+            }
             engine?.let { view.mode = it.mode }
             keyboardView = view
         }
@@ -462,6 +465,11 @@ class MokyaImeService : InputMethodService(), MieListener {
         }
     }
 
+    /** Closes the SYM1 picker without typing, as a short SYM1 press does. */
+    private fun closePicker() {
+        if (engine?.pickerActive == true) runEngine { tap(it, MokyaKeys.KEY_SYM1, SystemClock.uptimeMillis()) }
+    }
+
     private fun tap(e: MieEngine, keycode: Int, nowMs: Long) {
         e.processKey(keycode, true, nowMs)
         e.processKey(keycode, false, nowMs)
@@ -692,7 +700,13 @@ class MokyaImeService : InputMethodService(), MieListener {
         val e = engine ?: return
         keyboardView?.mode = e.mode
         val picker = e.pickerActive
-        val items = if (picker) e.pickerCells() else e.candidates()
+        keyboardView?.picker = picker
+        // With the on-screen keyboard up the picker has a page of its own there.
+        val items = when {
+            !picker -> e.candidates()
+            isInputViewShown -> emptyList()
+            else -> e.pickerCells()
+        }
         val selected = when {
             picker -> e.pickerSelected
             items.isEmpty() -> -1

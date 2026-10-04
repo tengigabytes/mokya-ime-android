@@ -70,10 +70,31 @@ object KeyboardLayout {
         bottomRow,
     )
 
+    /**
+     * The page the half-keyboard turns into while the engine's SYM1 picker
+     * is open (，SYM held): the digits on top, the picker's own sixteen
+     * marks and the brackets and dashes it lacks, then the ASCII symbols
+     * most used in Chinese text. A key types its symbol and closes the
+     * picker; the SYM1 key in the corner closes it without typing, as on
+     * the device. The other ASCII symbols are on ABC's [symbolRows].
+     */
+    val pickerRows: List<List<TouchKey>> = listOf(
+        "1234567890".map(::symbol),
+        "「」『』（）【】《》".map(::symbol),
+        "，。、；：？！…〈〉".map(::symbol),
+        listOf(symbol("——")) + "～·@#%&*+=".map(::symbol),
+        "-/_()\"':;?".map(::symbol),
+        listOf(TouchKey.Engine(MokyaKeys.KEY_SYM1, 2f)) + ",.!$<>[]".map(::symbol),
+    )
+
     const val ROW_UNITS = 10f
 
-    /** The on-screen rows for [mode]; [symbols] picks ABC's symbol page. */
-    fun touchRows(mode: InputMode, symbols: Boolean = false): List<List<TouchKey>> = when {
+    /**
+     * The on-screen rows for [mode]; [symbols] picks ABC's symbol page, and
+     * [picker] the page of the SYM1 picker, whatever the mode.
+     */
+    fun touchRows(mode: InputMode, symbols: Boolean = false, picker: Boolean = false): List<List<TouchKey>> = when {
+        picker -> pickerRows
         mode != InputMode.DIRECT -> rows.map { row -> row.map { TouchKey.Engine(it) } }
         symbols -> symbolRows
         else -> qwertyRows
@@ -81,8 +102,10 @@ object KeyboardLayout {
 
     private fun letter(c: Char) = TouchKey.Text("$c", "${c.uppercaseChar()}")
 
-    /** The symbol page has no Shift: a key types the same either way. */
-    private fun symbol(c: Char) = TouchKey.Text("$c", "$c")
+    /** The symbol pages have no Shift: a key types the same either way. */
+    private fun symbol(c: Char) = symbol("$c")
+
+    private fun symbol(s: String) = TouchKey.Text(s, s)
 
     /** Text drawn on a key: [main] large in the centre, [hint] small above it. */
     data class Label(val main: String, val hint: String)
