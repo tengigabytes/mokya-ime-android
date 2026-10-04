@@ -223,25 +223,23 @@ class ImeEndToEndTest {
     }
 
     @Test
-    fun touchPagesCandidatesAndTapsOne() {
+    fun touchExpandsCandidatesAndTapsOne() {
         touch(MokyaKeys.KEY_A)   // ㄇㄋ
         touch(MokyaKeys.KEY_C)   // ㄏㄒ
         waitForText("ㄇㄋ, ㄏㄒ")
         val strip = { MokyaImeService.current!!.candidateStripForTest!! }
-        waitFor("more candidates than fit") { onMain { strip().settledForTest && strip().canPageForwardForTest } }
+        waitFor("more candidates than fit") { onMain { strip().settledForTest && strip().canExpandForTest } }
 
         onMain { MokyaImeService.trace { "test: " + strip().geometryForTest() } }
-        tapAt(onMain { strip().pageButtonCenterOnScreen(forward = true) })
-        var lastX = -1
-        waitFor("strip paged") {
-            val x = onMain { strip().scrollXForTest }
-            (x > 0 && x == lastX).also { lastX = x }   // scrolled, and the animation ended
-        }
-        val index = onMain { strip().firstVisibleItemForTest() }
+        tapAt(onMain { strip().expandButtonCenterOnScreen() })
+        waitFor("strip expanded") { onMain { strip().expandedForTest && strip().settledForTest } }
+        onMain { MokyaImeService.trace { "test: " + strip().geometryForTest() } }
+        val index = onMain { strip().firstItemOfRowForTest(1) }
+        assertTrue("first candidate of the second row, got $index\n${traceDump()}", index > 0)
         val word = onMain { MokyaImeService.current!!.candidatesForTest()[index] }
-        assertTrue("first candidate of the second page, got $index", index > 0)
         tapAt(onMain { strip().itemCenterOnScreen(index)!! })
         waitForText(word)
+        waitFor("strip collapsed") { onMain { !strip().expandedForTest } }
     }
 
     @Test

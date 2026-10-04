@@ -230,7 +230,10 @@ class MokyaImeService : InputMethodService(), MieListener {
         // With the keyboard up the strip is always shown: let the app's content
         // end above it, so it never covers the field being typed into. (The
         // strip alone, for a hardware keyboard, still floats over the app.)
-        if (isInputViewShown) outInsets.contentTopInsets = outInsets.visibleTopInsets
+        // The rows of an expanded strip float too, so the app does not resize.
+        if (isInputViewShown) {
+            outInsets.contentTopInsets = outInsets.visibleTopInsets + (candidateStrip?.expandedExtraHeight ?: 0)
+        }
         if (tracing) {   // diagnostics: where the IME accepts touches
             val now = "insets content=${outInsets.contentTopInsets} visible=${outInsets.visibleTopInsets} " +
                 "touchable=${outInsets.touchableInsets} region=${outInsets.touchableRegion.bounds}"
@@ -309,6 +312,7 @@ class MokyaImeService : InputMethodService(), MieListener {
     override fun onFinishInputView(finishingInput: Boolean) {
         trace { "finishInputView finishingInput=$finishingInput" }
         keyboardView?.cancelTouches()
+        candidateStrip?.collapse()
         super.onFinishInputView(finishingInput)
     }
 
@@ -694,7 +698,8 @@ class MokyaImeService : InputMethodService(), MieListener {
             items.isEmpty() -> -1
             else -> e.selectedCandidate
         }
-        candidateStrip?.show(CandidateStripView.State(e.mode.indicator, items, selected, picker))
+        // The on-screen keyboard's MODE key shows the mode: leave the strip to the candidates.
+        candidateStrip?.show(CandidateStripView.State(e.mode.indicator, !isInputViewShown, items, selected, picker))
         val composing = e.hasPending || items.isNotEmpty()
         keyboardView?.composing = composing
         val showCandidates = isInputViewShown || composing || SystemClock.uptimeMillis() < modeFlashUntil

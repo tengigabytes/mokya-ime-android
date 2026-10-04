@@ -77,7 +77,8 @@
         <item>touch.long_press_timing|0.5 s is the right hold time (note: too long / too short)</item>
         <item>touch.long_press_cycle|Holding again to switch to the second symbol is easy</item>
         <item>touch.tap_candidate|Tapping a candidate enters it</item>
-        <item>touch.page|‹ › page through the candidates</item>
+        <item>touch.swipe|Swiping the candidate row scrolls it</item>
+        <item>touch.expand|▲ opens every candidate in rows; picking one closes them</item>
         <item>touch.del_repeat|Holding ⌫ keeps deleting</item>
         <item>touch.sym1|，SYM: tap types a comma, hold opens the symbol table</item>
         <item>touch.sym2|。？！ cycles on repeated taps</item>

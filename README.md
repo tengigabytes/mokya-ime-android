@@ -21,9 +21,10 @@ Bopomofo symbols (ㄞㄢㄦ has three):
   within 800 ms to cycle to the next.
 - **MODE** cycles 中 → EN → ABC. **，SYM** types ，; hold it for the symbol
   table. **。.？** cycles 。？！.
-- Tap a candidate in the strip to enter it. **‹ ›** at the ends of the strip
-  page through the candidates (a swipe scrolls it too). **OK** enters the
-  highlighted candidate, and **⇥** moves the highlight to the next page.
+- Tap a candidate in the strip to enter it. Swipe the strip to scroll it, or
+  tap **▲** at its right end to open every candidate in rows above it; they
+  close again once you pick one. **OK** enters the highlighted candidate,
+  and **⇥** moves the highlight to the next page.
 - With nothing pending, OK turns blue and shows what it will do: the
   field's action (Send, Search, Next…) or ↵ for a new line. While
   composing it reads **OK** and only commits.
@@ -58,7 +59,7 @@ mokya-ime-android/
 │       ├── main/java/.../mokyaime/
 │       │   ├── MokyaImeService.kt   engine ↔ InputConnection, touch + hardware input
 │       │   ├── ui/KeyboardView.kt   on-screen half-keyboard (canvas)
-│       │   ├── ui/CandidateStripView.kt  mode, candidates / symbol picker, position
+│       │   ├── ui/CandidateStripView.kt  candidates / symbol picker, expandable
 │       │   ├── SetupActivity.kt     launcher + IME settings, try-it field
 │       │   ├── LicensesActivity.kt  NOTICE and licence texts
 │       │   ├── DictionaryAsset.kt   memory-maps the dictionary asset
@@ -73,7 +74,7 @@ mokya-ime-android/
 │   └── src/main/kotlin/.../
 │       ├── engine/               MieEngine, MieListener, MokyaKeys, MieNative
 │       ├── input/                keyboard layout & labels, touch timing
-│       │                         (PressTracker), candidate paging (StripPaging),
+│       │                         (PressTracker), candidate rows (CandidateGrid),
 │       │                         HardwareKeyMapper, EditorPolicy
 │       └── fieldtest/            field-test checklist, report, trace ring
 ├── licenses/                     LGPL-2.1 and CC BY-SA 4.0 texts (dictionary data)

@@ -75,7 +75,8 @@
         <item>touch.long_press_timing|0.5 秒的長按時間剛好（備註：太長或太短）</item>
         <item>touch.long_press_cycle|再長按一次換第二個音，好操作</item>
         <item>touch.tap_candidate|點候選字可以輸入</item>
-        <item>touch.page|‹ › 可以翻頁</item>
+        <item>touch.swipe|候選字列可以左右滑動</item>
+        <item>touch.expand|▲ 向上展開多列候選字，選字後自動收合</item>
         <item>touch.del_repeat|⌫ 按住連續刪除</item>
         <item>touch.sym1|，SYM 短按打逗號、長按開符號表</item>
         <item>touch.sym2|。？！ 連按切換</item>
