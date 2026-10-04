@@ -22,7 +22,8 @@ Bopomofo symbols (ㄞㄢㄦ has three):
   vibrates and turns amber) shows its symbols above it; releasing without
   sliding types the first one, or the middle one (ㄢ) on ㄞㄢㄦ. Slide up
   or down off the key to cancel.
-- **MODE** cycles 中 → EN → ABC. **，SYM** types ，; hold it for a page
+- **MODE** cycles 中 → EN → ABC. **，SYM** types ，; slide left on it
+  for 、 or right for ：; hold it for a page
   of symbols with the digits on top: a key types its symbol and goes
   back (the key in its corner goes back without typing). **。？！** cycles 。？！ on repeated
   taps; slide left on it for 。, right for ！, or hold it for ？.

@@ -36,6 +36,8 @@ import io.github.tengigabytes.mokyaime.input.TouchKey
  * In 中 a Bopomofo key is tapped for any of its symbols, or one is picked by
  * sliding left or right ([PhonemeSlide]) or by holding the key; a popup
  * above the key then shows which. 。？！ is picked from in the same way.
+ * ，SYM types 、 or ： when slid; holding it opens the engine's picker,
+ * for which the keyboard turns into a page of symbols ([picker]).
  */
 class KeyboardView @JvmOverloads constructor(
     context: Context,
@@ -44,6 +46,12 @@ class KeyboardView @JvmOverloads constructor(
 
     /** Receives MIE key edges (keycode, pressed, flags). */
     var onKey: (keycode: Int, pressed: Boolean, flags: Int) -> Unit = { _, _, _ -> }
+
+    /**
+     * Receives the press of a key held since [sinceMs] (uptimeMillis), for
+     * the engine to see it as held that long. Its release goes to [onKey].
+     */
+    var onKeyHeld: (keycode: Int, sinceMs: Long) -> Unit = { _, _ -> }
 
     /** Receives text typed on the QWERTY layout. */
     var onText: (String) -> Unit = {}
@@ -96,8 +104,11 @@ class KeyboardView @JvmOverloads constructor(
     private class Key(val spec: TouchKey, val bounds: RectF = RectF())
 
     /** A finger on [key]. [choices]: what sliding or holding picks from ([KeyboardLayout.slideChoices]). */
-    private class Press(val key: Key, val downX: Float, val choices: List<String>) {
+    private class Press(val key: Key, val downX: Float, val downTimeMs: Long, val choices: List<String>) {
         val slides: Boolean get() = choices.isNotEmpty()
+
+        /** Holding the key opens the engine's picker instead of picking one of [choices]. */
+        val holdOpensPicker = (key.spec as? TouchKey.Engine)?.let { KeyboardLayout.holdOpensPicker(it.keycode) } == true
 
         /** Past the long-press mark. */
         var held = false
@@ -105,8 +116,11 @@ class KeyboardView @JvmOverloads constructor(
         /** Index in [choices] picked by sliding. */
         var phoneme: Int? = null
 
+        /** Held without sliding, on a key that opens the picker: the engine has its press ([onKeyHeld]). */
+        var engineDown = false
+
         /** Index in [choices] that a release types, or null for a plain tap. */
-        val typed: Int? get() = phoneme ?: if (held) PhonemeSlide.held(choices.size) else null
+        val typed: Int? get() = phoneme ?: if (held && !holdOpensPicker) PhonemeSlide.held(choices.size) else null
     }
 
     private var rows: List<List<Key>> = buildRows()
@@ -196,6 +210,12 @@ class KeyboardView @JvmOverloads constructor(
         val press = presses[pointerId] ?: return
         press.held = true
         performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        val keycode = (press.key.spec as? TouchKey.Engine)?.keycode
+        if (keycode != null && press.phoneme == null && press.holdOpensPicker) {
+            // The engine opens its picker on its next tick: it measures the hold itself.
+            press.engineDown = true
+            onKeyHeld(keycode, press.downTimeMs)
+        }
         invalidate()
     }
 
@@ -260,7 +280,7 @@ class KeyboardView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         val pressed = presses.values.map { it.key }.toSet()
-        val picking = presses.values.filter { it.held || it.phoneme != null }
+        val picking = presses.values.filter { (it.held || it.phoneme != null) && !it.engineDown }
         val pickingKeys = picking.map { it.key }.toSet()
         for (key in keys) {
             val spec = key.spec
@@ -340,7 +360,9 @@ class KeyboardView @JvmOverloads constructor(
                 if (key == null) return true
                 val pointer = event.getPointerId(i)
                 val engineKey = key.spec as? TouchKey.Engine
-                val press = Press(key, event.getX(i), engineKey?.let { KeyboardLayout.slideChoices(it.keycode, mode) }.orEmpty())
+                // The picker's page has nothing to pick by sliding: its SYM key only goes back.
+                val choices = if (picker) emptyList() else engineKey?.let { KeyboardLayout.slideChoices(it.keycode, mode) }.orEmpty()
+                val press = Press(key, event.getX(i), event.eventTime, choices)
                 presses[pointer] = press
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 // Text, Shift and the page key act on release, so sliding off cancels them.
@@ -365,9 +387,12 @@ class KeyboardView @JvmOverloads constructor(
                     if (off) {
                         MokyaImeService.traceInput { "touch slid off key=${key.spec}" }
                         presses.remove(pointer)
-                        if (key.spec is TouchKey.Engine) tracker.cancel(pointer)
+                        if (key.spec is TouchKey.Engine) {
+                            tracker.cancel(pointer)
+                            if (press.engineDown) onKey(key.spec.keycode, false, 0)
+                        }
                         invalidate()
-                    } else if (press.slides) {
+                    } else if (press.slides && !press.engineDown) {
                         val phoneme = PhonemeSlide.picked(press.choices.size, x - press.downX, slideThreshold)
                         if (phoneme != press.phoneme) {
                             MokyaImeService.traceInput { "touch slid to phoneme $phoneme of key=${key.spec}" }
@@ -386,12 +411,17 @@ class KeyboardView @JvmOverloads constructor(
                 when (val spec = press.key.spec) {
                     is TouchKey.Engine -> {
                         val typed = press.typed
-                        if (typed != null && !KeyLabels.isInputKey(spec.keycode)) {
-                            // A sentence mark: the engine only cycles through them.
-                            tracker.cancel(pointer)
-                            onText(press.choices[typed])
-                        } else {
-                            tracker.up(pointer)
+                        when {
+                            press.engineDown -> {
+                                tracker.cancel(pointer)
+                                onKey(spec.keycode, false, 0)
+                            }
+                            typed != null && !KeyLabels.isInputKey(spec.keycode) -> {
+                                // A punctuation mark: the engine has no way to name one.
+                                tracker.cancel(pointer)
+                                onText(press.choices[typed])
+                            }
+                            else -> tracker.up(pointer)
                         }
                     }
                     is TouchKey.Text -> {
@@ -417,6 +447,7 @@ class KeyboardView @JvmOverloads constructor(
 
     /** Abandons every held key, e.g. when the keyboard is hidden. */
     fun cancelTouches() {
+        presses.values.filter { it.engineDown }.forEach { onKey((it.key.spec as TouchKey.Engine).keycode, false, 0) }
         presses.clear()
         tracker.cancelAll()
         invalidate()

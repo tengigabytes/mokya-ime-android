@@ -30,7 +30,11 @@ class KeyboardLayoutTest {
         assertEquals(listOf("ㄍ", "ㄐ"), KeyboardLayout.slideChoices(MokyaKeys.KEY_E, InputMode.SMART_ZH))
         assertEquals(listOf("ㄞ", "ㄢ", "ㄦ"), KeyboardLayout.slideChoices(MokyaKeys.KEY_9, InputMode.SMART_ZH))
         assertEquals(listOf("。", "？", "！"), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM2, InputMode.SMART_ZH))
-        assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM1, InputMode.SMART_ZH))
+        assertEquals(listOf("、", "："), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM1, InputMode.SMART_ZH))
+        assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM1, InputMode.SMART_EN))
+        assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_MODE, InputMode.SMART_ZH))
+        assertTrue(KeyboardLayout.holdOpensPicker(MokyaKeys.KEY_SYM1))
+        assertFalse(KeyboardLayout.holdOpensPicker(MokyaKeys.KEY_SYM2))
         assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_E, InputMode.SMART_EN))
         assertEquals(emptyList(), KeyboardLayout.slideChoices(MokyaKeys.KEY_SYM2, InputMode.SMART_EN))
         assertTrue(KeyboardLayout.defersPress(MokyaKeys.KEY_SYM2, InputMode.SMART_ZH))
@@ -118,15 +122,16 @@ class KeyboardLayoutTest {
     fun functionKeyLabels() {
         assertEquals("中", KeyboardLayout.label(MokyaKeys.KEY_MODE, InputMode.SMART_ZH).main)
         assertEquals("ABC", KeyboardLayout.label(MokyaKeys.KEY_MODE, InputMode.DIRECT).main)
-        assertEquals("，", KeyboardLayout.label(MokyaKeys.KEY_SYM1, InputMode.SMART_ZH).main)
-        assertEquals(",", KeyboardLayout.label(MokyaKeys.KEY_SYM1, InputMode.SMART_EN).main)
+        assertEquals(KeyboardLayout.Label("、，：", "SYM"), KeyboardLayout.label(MokyaKeys.KEY_SYM1, InputMode.SMART_ZH))
+        assertEquals(KeyboardLayout.Label(",", "SYM"), KeyboardLayout.label(MokyaKeys.KEY_SYM1, InputMode.SMART_EN))
     }
 
     @Test
-    fun onlySmartZhInputKeysDeferPress() {
+    fun onlySmartZhKeysWithSomethingToPickDeferPress() {
         assertTrue(KeyboardLayout.defersPress(MokyaKeys.KEY_Q, InputMode.SMART_ZH))
         assertFalse(KeyboardLayout.defersPress(MokyaKeys.KEY_Q, InputMode.SMART_EN))
-        assertFalse(KeyboardLayout.defersPress(MokyaKeys.KEY_SYM1, InputMode.SMART_ZH))
+        assertTrue(KeyboardLayout.defersPress(MokyaKeys.KEY_SYM1, InputMode.SMART_ZH))
+        assertFalse(KeyboardLayout.defersPress(MokyaKeys.KEY_SYM1, InputMode.SMART_EN))
         assertFalse(KeyboardLayout.defersPress(MokyaKeys.KEY_DEL, InputMode.SMART_ZH))
     }
 }

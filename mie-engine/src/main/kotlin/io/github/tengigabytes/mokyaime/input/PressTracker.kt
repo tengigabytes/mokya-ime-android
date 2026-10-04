@@ -14,15 +14,16 @@ import io.github.tengigabytes.mokyaime.engine.MokyaKeys
  *   reports, they carry the flag of the picked symbol, or else of the one
  *   that holding gives. The device's own way to reach the second symbol, a
  *   second long press within 800 ms, is not used: on a touch screen that
- *   leaves 300 ms to lift the finger and press again. SYM2 is deferred
- *   too: its tap goes to the engine as it is, and the view types a picked
- *   sentence mark itself, after [cancel].
+ *   leaves 300 ms to lift the finger and press again. SYM1 and SYM2 are
+ *   deferred too in SmartZh: their tap goes to the engine as it is, and
+ *   the view handles the rest itself, after [cancel] (a picked mark, and
+ *   for SYM1 held the press that opens the engine's picker).
  * - [REPEATING] keys (DEL and the arrows) press on touch-down and, when
  *   held, press again after [REPEAT_DELAY_MS] and every
  *   [REPEAT_INTERVAL_MS]. This auto-repeat is an Android addition; the
  *   device keypad does not repeat.
  * - Every other key presses on touch-down and releases on touch-up, which
- *   SYM1's engine-side long-press detection relies on.
+ *   SYM1's engine-side long-press detection relies on outside SmartZh.
  *
  * Pointers are tracked independently, so several keys may be held at once.
  * Not thread-safe; use it on the UI thread.

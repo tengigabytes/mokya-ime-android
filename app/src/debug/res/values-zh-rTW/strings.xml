@@ -82,6 +82,7 @@
         <item>touch.expand|▲ 向上展開多列候選字，選字後自動收合</item>
         <item>touch.del_repeat|⌫ 按住連續刪除</item>
         <item>touch.sym1|，SYM 短按打逗號、長按開符號頁</item>
+        <item>touch.sym1_slide|，SYM：往左滑 、、往右滑 ：</item>
         <item>touch.sym_page|符號頁：最上排是數字，點一個就輸入並返回；左下角的鍵不輸入直接返回</item>
         <item>touch.sym2|。？！ 連按切換</item>
         <item>touch.sym2_slide|。？！：往左滑 。、往右滑 ！、長按 ？</item>

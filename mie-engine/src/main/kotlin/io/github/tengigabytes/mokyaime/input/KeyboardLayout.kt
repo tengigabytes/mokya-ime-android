@@ -127,7 +127,8 @@ object KeyboardLayout {
             MokyaKeys.KEY_MODE -> Label(mode.indicator, "MODE")
             MokyaKeys.KEY_TAB -> Label("⇥", "TAB")
             MokyaKeys.KEY_SPACE -> Label("␣", "SPACE")
-            MokyaKeys.KEY_SYM1 -> Label(if (zh) "，" else ",", "SYM")
+            // In 中, as the key is used: 、 to the left, ， in place, ： to the right.
+            MokyaKeys.KEY_SYM1 -> Label(if (zh) zhCommaSlides.joinToString("，") else ",", "SYM")
             MokyaKeys.KEY_SYM2 -> Label(if (zh) zhSentenceMarks.joinToString("") else ". ? !", "")
             MokyaKeys.KEY_OK -> Label("OK", "")
             MokyaKeys.KEY_DEL -> Label("⌫", "DEL")
@@ -138,17 +139,25 @@ object KeyboardLayout {
     /** SYM2's sentence marks in SmartZh, as `kSym2ZhCycle` in libmie's `src/ime_direct.cpp`. */
     val zhSentenceMarks: List<String> = listOf("。", "？", "！")
 
+    /** What sliding left and right on SYM1 types in SmartZh; a tap types ，. */
+    val zhCommaSlides: List<String> = listOf("、", "：")
+
     /**
-     * What sliding on [keycode] or holding it picks from ([PhonemeSlide]),
-     * in the order the key shows them; empty when there is nothing to
-     * pick. In SmartZh the 20 input keys offer their Bopomofo symbols and
-     * SYM2 its sentence marks; other modes have nothing to pick.
+     * What sliding on [keycode] picks from ([PhonemeSlide]), in the order
+     * the key shows them; empty when there is nothing to pick. In SmartZh
+     * the 20 input keys offer their Bopomofo symbols, SYM2 its sentence
+     * marks and SYM1 [zhCommaSlides]; other modes have nothing to pick.
+     * Holding the key picks too, unless it [holdOpensPicker].
      */
     fun slideChoices(keycode: Int, mode: InputMode): List<String> = when {
         mode != InputMode.SMART_ZH -> emptyList()
+        keycode == MokyaKeys.KEY_SYM1 -> zhCommaSlides
         keycode == MokyaKeys.KEY_SYM2 -> zhSentenceMarks
         else -> KeyLabels.inputKey(keycode)?.phonemes.orEmpty()
     }
+
+    /** True for SYM1: holding it opens the engine's picker rather than picking a symbol. */
+    fun holdOpensPicker(keycode: Int): Boolean = keycode == MokyaKeys.KEY_SYM1
 
     /**
      * True for keys whose press is deferred until release ([PressTracker]):

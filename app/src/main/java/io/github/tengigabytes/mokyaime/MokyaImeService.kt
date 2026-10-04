@@ -205,6 +205,7 @@ class MokyaImeService : InputMethodService(), MieListener {
     override fun onCreateInputView(): View =
         KeyboardView(this).also { view ->
             view.onKey = { keycode, pressed, flags -> dispatchKey(keycode, pressed, flags) }
+            view.onKeyHeld = { keycode, sinceMs -> dispatchKey(keycode, true, eventTimeMs = sinceMs) }
             view.onText = { text ->
                 closePicker()   // a key of the picker's page: it types one symbol and goes back
                 commitLiteral(text)

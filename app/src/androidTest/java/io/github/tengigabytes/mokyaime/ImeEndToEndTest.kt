@@ -285,6 +285,17 @@ class ImeEndToEndTest {
     }
 
     @Test
+    fun touchCommaKeySlides() {
+        touch(MokyaKeys.KEY_SYM1)
+        waitForText("，")
+        slide(MokyaKeys.KEY_SYM1, dxDp = -40f)
+        waitForText("，、")
+        slide(MokyaKeys.KEY_SYM1, dxDp = 40f)
+        waitForText("，、：")
+        assertTrue("picker opened\n${traceDump()}", onMain { !MokyaImeService.current!!.pickerActiveForTest })
+    }
+
+    @Test
     fun touchSym1LongPressOpensPicker() {
         touch(MokyaKeys.KEY_SYM1, holdMs = 800)
         assertTrue("symbol picker not open\n${traceDump()}", onMain { MokyaImeService.current!!.pickerActiveForTest })
