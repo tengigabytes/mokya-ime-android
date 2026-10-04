@@ -73,9 +73,12 @@
 
     <string-array name="ft_items_touch">
         <item>touch.fuzzy_first_page|Tapping (fuzzy match) puts common words on the first page</item>
-        <item>touch.long_press_feedback|A 0.5 s hold vibrates and turns the key amber</item>
+        <item>touch.long_press_feedback|A 0.5 s hold vibrates, turns the key amber and shows its symbols above it</item>
         <item>touch.long_press_timing|0.5 s is the right hold time (note: too long / too short)</item>
-        <item>touch.long_press_cycle|Holding again to switch to the second symbol is easy</item>
+        <item>touch.slide_pick|Sliding left / right on a key picks its left / right symbol, without waiting</item>
+        <item>touch.slide_accidental|Fast tapping does not pick a symbol by accident</item>
+        <item>touch.slide_edge|Sliding on the edge columns does not trigger the system back gesture</item>
+        <item>touch.hold_three|ㄞㄢㄦ: hold for ㄢ, left for ㄞ, right for ㄦ</item>
         <item>touch.tap_candidate|Tapping a candidate enters it</item>
         <item>touch.swipe|Swiping the candidate row scrolls it</item>
         <item>touch.expand|▲ opens every candidate in rows; picking one closes them</item>

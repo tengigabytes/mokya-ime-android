@@ -10,7 +10,7 @@
     <string name="setup_status_enabled">Mokya 輸入法已啟用，但不是目前的鍵盤。</string>
     <string name="setup_status_ready">Mokya 輸入法是目前的鍵盤。</string>
     <string name="setup_try_hint">在這裡試打</string>
-    <string name="setup_touch_help">螢幕鍵盤：每個鍵有兩個注音（ㄞㄢㄦ 有三個）。輕點可對應其中任一個；長按選第一個，再長按依序切換。MODE 切換 中／EN／ABC；長按 ，SYM 開符號表。點候選字直接送出；‹ › 翻頁；OK 送出反白的候選字，沒有組字時會顯示欄位的動作（例如「送出」）。ABC 模式是含數字列的 QWERTY 鍵盤。</string>
+    <string name="setup_touch_help">螢幕鍵盤：每個鍵有兩個注音（ㄞㄢㄦ 有三個）。輕點可對應其中任一個；在鍵上往左、往右滑可指定左邊、右邊的注音，長按不滑是第一個（ㄞㄢㄦ 是中間的 ㄢ）。MODE 切換 中／EN／ABC；長按 ，SYM 開符號表。點候選字直接送出；左右滑動或點 ▲ 展開全部；OK 送出反白的候選字，沒有組字時會顯示欄位的動作（例如「送出」）。ABC 模式是含數字列的 QWERTY 鍵盤。</string>
     <string name="setup_hardware_help">實體鍵盤：「中」模式使用標準大千注音配置，Enter 送出；EN 模式預測英文單字；ABC 直接輸入。Ctrl+Space 切換模式。Shift 可輸入大寫字母與全形標點（，。？：！）。</string>
     <string name="setup_licenses">開放原始碼授權</string>
     <string name="licenses_title">開放原始碼授權</string>

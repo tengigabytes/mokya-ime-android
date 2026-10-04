@@ -71,9 +71,12 @@
 
     <string-array name="ft_items_touch">
         <item>touch.fuzzy_first_page|輕點的模糊比對，常用詞在第一頁</item>
-        <item>touch.long_press_feedback|長按 0.5 秒時有震動、按鍵變琥珀色</item>
+        <item>touch.long_press_feedback|長按 0.5 秒時有震動、按鍵變琥珀色，上方顯示該鍵的注音</item>
         <item>touch.long_press_timing|0.5 秒的長按時間剛好（備註：太長或太短）</item>
-        <item>touch.long_press_cycle|再長按一次換第二個音，好操作</item>
+        <item>touch.slide_pick|在鍵上往左／右滑可指定左／右邊的注音，不用等</item>
+        <item>touch.slide_accidental|快速輕點時不會誤選成指定注音</item>
+        <item>touch.slide_edge|在最左、最右欄滑動不會觸發系統返回手勢</item>
+        <item>touch.hold_three|ㄞㄢㄦ：長按是 ㄢ，往左 ㄞ，往右 ㄦ</item>
         <item>touch.tap_candidate|點候選字可以輸入</item>
         <item>touch.swipe|候選字列可以左右滑動</item>
         <item>touch.expand|▲ 向上展開多列候選字，選字後自動收合</item>

@@ -16,9 +16,12 @@ on top, then the 5×5 core input area. The D-pad is left out: candidates are
 tapped, and the cursor is placed by touching the text. Each key carries two
 Bopomofo symbols (ㄞㄢㄦ has three):
 
-- Tap a key to match any of its symbols. Hold it (500 ms) to pin the first
-  symbol: the key vibrates and turns amber when it is pinned. Hold again
-  within 800 ms to cycle to the next.
+- Tap a key to match any of its symbols. To type one exactly, slide left
+  or right on the key, as the symbols are printed: left for the first,
+  right for the last. No need to wait. Holding the key (500 ms: it
+  vibrates and turns amber) shows its symbols above it; releasing without
+  sliding types the first one, or the middle one (ㄢ) on ㄞㄢㄦ. Slide up
+  or down off the key to cancel.
 - **MODE** cycles 中 → EN → ABC. **，SYM** types ，; hold it for the symbol
   table. **。.？** cycles 。？！.
 - Tap a candidate in the strip to enter it. Swipe the strip to scroll it, or

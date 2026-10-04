@@ -243,12 +243,33 @@ class ImeEndToEndTest {
     }
 
     @Test
-    fun touchLongPressPinsAndCyclesPhoneme() {
-        // Long press → primary ㄆ; a second long press whose 500 ms mark
-        // falls within 800 ms of the first one cycles to the secondary ㄊ.
-        touch(MokyaKeys.KEY_Q, holdMs = 550)
-        touch(MokyaKeys.KEY_Q, holdMs = 550)
+    fun touchHoldAndSlidePickPhonemes() {
+        touch(MokyaKeys.KEY_Q, holdMs = 600)            // held: the first symbol
+        waitForText("ㄆ")
+        touch(MokyaKeys.KEY_DEL)
+        waitForText("")
+        slide(MokyaKeys.KEY_Q, dxDp = 40f)              // slid right, no wait: the second
         waitForText("ㄊ")
+        touch(MokyaKeys.KEY_DEL)
+        waitForText("")
+        slide(MokyaKeys.KEY_Q, dxDp = -40f)             // slid left: the first
+        waitForText("ㄆ")
+        touch(MokyaKeys.KEY_DEL)
+        waitForText("")
+    }
+
+    @Test
+    fun touchKeyOfThreePhonemes() {
+        touch(MokyaKeys.KEY_9, holdMs = 600)            // ㄞㄢㄦ held: the middle one
+        waitForText("ㄢ")
+        touch(MokyaKeys.KEY_DEL)
+        waitForText("")
+        slide(MokyaKeys.KEY_9, dxDp = -40f, holdMs = 600)   // held, then slid left
+        waitForText("ㄞ")
+        touch(MokyaKeys.KEY_DEL)
+        waitForText("")
+        slide(MokyaKeys.KEY_9, dxDp = 40f)
+        waitForText("ㄦ")
         touch(MokyaKeys.KEY_DEL)
         waitForText("")
     }
@@ -352,6 +373,23 @@ class ImeEndToEndTest {
         val point = onMain { MokyaImeService.current?.keyCenterOnScreen(keycode) }
         assertNotNull("key $keycode not on screen", point)
         tapAt(point!!, holdMs)
+    }
+
+    /** Touches a key, holds it for [holdMs], slides [dxDp] sideways and lifts. */
+    private fun slide(keycode: Int, dxDp: Float, holdMs: Long = 60) {
+        onMain { MokyaImeService.trace { "test: slide $keycode by $dxDp dp after $holdMs ms" } }
+        val point = onMain { MokyaImeService.current?.keyCenterOnScreen(keycode) }
+        assertNotNull("key $keycode not on screen", point)
+        val dx = dxDp * instrumentation.targetContext.resources.displayMetrics.density
+        val down = SystemClock.uptimeMillis()
+        inject(MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, point!!.x, point.y, 0))
+        SystemClock.sleep(holdMs)
+        for (step in 1..4) {
+            inject(MotionEvent.obtain(down, SystemClock.uptimeMillis(), MotionEvent.ACTION_MOVE, point.x + dx * step / 4, point.y, 0))
+            SystemClock.sleep(10)
+        }
+        inject(MotionEvent.obtain(down, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, point.x + dx, point.y, 0))
+        instrumentation.waitForIdleSync()
     }
 
     private fun restartField(inputType: Int, imeOptions: Int = EditorInfo.IME_NULL) {

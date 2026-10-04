@@ -113,10 +113,10 @@ object KeyboardLayout {
     }
 
     /**
-     * True for keys whose press is deferred until release or the 500 ms
-     * long-press mark (MokyaLora keypad_scan.c): the 20 input keys in
-     * SmartZh, where a long press pins a phoneme. Other modes ignore the
-     * long-press flag, so their input keys act on press.
+     * True for keys whose press is deferred until release: the 20 input
+     * keys in SmartZh, where sliding or holding picks a phoneme
+     * ([PressTracker]). Other modes have nothing to pick, so their input
+     * keys act on press.
      */
     fun defersPress(keycode: Int, mode: InputMode): Boolean =
         mode == InputMode.SMART_ZH && KeyLabels.isInputKey(keycode)

@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.PointF
+import android.graphics.Rect
 import android.graphics.RectF
 import android.os.Build
 import android.os.Handler
@@ -21,6 +22,7 @@ import io.github.tengigabytes.mokyaime.engine.InputMode
 import io.github.tengigabytes.mokyaime.engine.MokyaKeys
 import io.github.tengigabytes.mokyaime.input.KeyLabels
 import io.github.tengigabytes.mokyaime.input.KeyboardLayout
+import io.github.tengigabytes.mokyaime.input.PhonemeSlide
 import io.github.tengigabytes.mokyaime.input.PressTracker
 import io.github.tengigabytes.mokyaime.input.ShiftKey
 import io.github.tengigabytes.mokyaime.input.TouchKey
@@ -29,8 +31,11 @@ import io.github.tengigabytes.mokyaime.input.TouchKey
  * On-screen keyboard, drawn on a canvas ([KeyboardLayout.touchRows]): the
  * MokyaLora half-keyboard (OK / DEL row and the 5×5 core) in 中 and EN, and
  * QWERTY with a number row in ABC, plus a symbol page. Engine keys become MIE key edges through
- * [PressTracker], which reproduces the device's long-press timing, and go to
- * [onKey]; QWERTY text goes to [onText].
+ * [PressTracker] and go to [onKey]; QWERTY text goes to [onText].
+ *
+ * In 中 a Bopomofo key is tapped for any of its symbols, or one is picked by
+ * sliding left or right ([PhonemeSlide]) or by holding the key; a popup
+ * above the key then shows which.
  */
 class KeyboardView @JvmOverloads constructor(
     context: Context,
@@ -53,6 +58,7 @@ class KeyboardView @JvmOverloads constructor(
                 symbols = false
                 rebuild()
             }
+            updateGestureExclusion()
             invalidate()
         }
 
@@ -79,6 +85,15 @@ class KeyboardView @JvmOverloads constructor(
 
     private class Key(val spec: TouchKey, val bounds: RectF = RectF())
 
+    /** A finger on [key]. [slides]: a Bopomofo key in 中, whose symbols can be picked. */
+    private class Press(val key: Key, val downX: Float, val slides: Boolean) {
+        /** Past the long-press mark. */
+        var held = false
+
+        /** Symbol picked by sliding. */
+        var phoneme: Int? = null
+    }
+
     private var rows: List<List<Key>> = buildRows()
     private val keys: List<Key> get() = rows.flatten()
 
@@ -92,6 +107,10 @@ class KeyboardView @JvmOverloads constructor(
     private val keyboardHeight = actionRowHeight + keyRowHeight * KeyboardLayout.coreRows.size
     private val gap = 3 * density
     private val radius = 6 * density
+    private val slideThreshold = 16 * density
+    private val popupCellWidth = 44 * density
+    private val popupHeight = 40 * density
+    private val edgeGestureWidth = (32 * density).toInt()
 
     /**
      * Space below the keys for the navigation bar / gesture handle. From
@@ -117,18 +136,16 @@ class KeyboardView @JvmOverloads constructor(
     private val colorLong = context.getColor(R.color.key_bg_long)
 
     private val handler = Handler(Looper.getMainLooper())
-    private val pressedKeys = HashMap<Int, Key>()   // by pointer id
-    private val longPressed = HashSet<Int>()        // keycodes past the long-press mark
+    private val presses = HashMap<Int, Press>()   // by pointer id
+    private val popupBounds = RectF()
     private val tracker = PressTracker(
         scheduler = { delayMs, action ->
             val runnable = Runnable(action)
             handler.postDelayed(runnable, delayMs)
             PressTracker.Cancellable { handler.removeCallbacks(runnable) }
         },
-        sink = { keycode, pressed, flags ->
-            if (flags and MokyaKeys.KEY_FLAG_LONG_PRESS != 0) onLongPressEdge(keycode, pressed)
-            onKey(keycode, pressed, flags)
-        },
+        onHold = ::onHold,
+        sink = { keycode, pressed, flags -> onKey(keycode, pressed, flags) },
     )
 
     init {
@@ -157,17 +174,27 @@ class KeyboardView @JvmOverloads constructor(
 
     /**
      * The long-press mark of a Bopomofo key: confirm it with a stronger
-     * haptic tick and highlight the key until it is released, so the user
-     * knows the phoneme was pinned without counting milliseconds.
+     * haptic tick, highlight the key and show its symbols, so the user sees
+     * which one a release types without counting milliseconds.
      */
-    private fun onLongPressEdge(keycode: Int, pressed: Boolean) {
-        if (pressed) {
-            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            longPressed += keycode
-        } else {
-            longPressed -= keycode
-        }
+    private fun onHold(pointerId: Int) {
+        val press = presses[pointerId] ?: return
+        press.held = true
+        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         invalidate()
+    }
+
+    /**
+     * Sliding sideways from the edge columns must pick a symbol, not start
+     * the system's back gesture.
+     */
+    private fun updateGestureExclusion() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        systemGestureExclusionRects = if (mode == InputMode.SMART_ZH && width > 0) {
+            listOf(Rect(0, 0, edgeGestureWidth, height), Rect(width - edgeGestureWidth, 0, width, height))
+        } else {
+            emptyList()
+        }
     }
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
@@ -193,6 +220,7 @@ class KeyboardView @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         layoutKeys(w)
+        updateGestureExclusion()
     }
 
     private fun layoutKeys(w: Int) {
@@ -216,12 +244,14 @@ class KeyboardView @JvmOverloads constructor(
     }
 
     override fun onDraw(canvas: Canvas) {
-        val pressed = pressedKeys.values.toSet()
+        val pressed = presses.values.map { it.key }.toSet()
+        val picking = presses.values.filter { it.held || it.phoneme != null }
+        val pickingKeys = picking.map { it.key }.toSet()
         for (key in keys) {
             val spec = key.spec
             val keycode = (spec as? TouchKey.Engine)?.keycode
             keyPaint.color = when {
-                keycode != null && keycode in longPressed -> colorLong
+                key in pickingKeys -> colorLong
                 key in pressed -> colorPressed
                 keycode == MokyaKeys.KEY_OK && !composing -> colorAccent
                 spec is TouchKey.Shift && shift.active -> colorAccent
@@ -240,6 +270,31 @@ class KeyboardView @JvmOverloads constructor(
             if (label.hint.isNotEmpty()) {
                 canvas.drawText(label.hint, b.centerX(), b.top + hintPaint.textSize + 2 * density, hintPaint)
             }
+        }
+        picking.forEach { drawPhonemePopup(canvas, it) }
+    }
+
+    /** The symbols of a held or slid key, above it, with the one a release types highlighted. */
+    private fun drawPhonemePopup(canvas: Canvas, press: Press) {
+        val keycode = (press.key.spec as? TouchKey.Engine)?.keycode ?: return
+        val phonemes = KeyLabels.inputKey(keycode)?.phonemes ?: return
+        val typed = press.phoneme ?: PhonemeSlide.held(phonemes.size)
+        val key = press.key.bounds
+        val popupWidth = popupCellWidth * phonemes.size
+        val left = (key.centerX() - popupWidth / 2).coerceIn(gap, maxOf(gap, width - gap - popupWidth))
+        val top = maxOf(0f, key.top - gap - popupHeight)
+        popupBounds.set(left, top, left + popupWidth, top + popupHeight)
+        keyPaint.color = colorPressed
+        canvas.drawRoundRect(popupBounds, radius, radius, keyPaint)
+        mainPaint.textSize = sp(19f)
+        phonemes.forEachIndexed { index, phoneme ->
+            val cellLeft = left + popupCellWidth * index
+            if (index == typed) {
+                popupBounds.set(cellLeft, top, cellLeft + popupCellWidth, top + popupHeight)
+                keyPaint.color = colorLong
+                canvas.drawRoundRect(popupBounds, radius, radius, keyPaint)
+            }
+            canvas.drawText(phoneme, cellLeft + popupCellWidth / 2, top + popupHeight / 2 + mainPaint.textSize * 0.38f, mainPaint)
         }
     }
 
@@ -269,31 +324,51 @@ class KeyboardView @JvmOverloads constructor(
                 MokyaImeService.traceInput { "touch down (${event.getX(i)}, ${event.getY(i)}) key=${key?.spec}" }
                 if (key == null) return true
                 val pointer = event.getPointerId(i)
-                pressedKeys[pointer] = key
+                val engineKey = key.spec as? TouchKey.Engine
+                val defers = engineKey != null && KeyboardLayout.defersPress(engineKey.keycode, mode)
+                presses[pointer] = Press(key, event.getX(i), slides = defers)
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 // Text, Shift and the page key act on release, so sliding off cancels them.
-                (key.spec as? TouchKey.Engine)?.let {
-                    tracker.down(pointer, it.keycode, KeyboardLayout.defersPress(it.keycode, mode))
-                }
+                engineKey?.let { tracker.down(pointer, it.keycode, defers) }
                 invalidate()
             }
             MotionEvent.ACTION_MOVE -> {
-                // Sliding off a key abandons it (a deferred tap types nothing).
                 for (i in 0 until event.pointerCount) {
                     val pointer = event.getPointerId(i)
-                    val key = pressedKeys[pointer] ?: continue
-                    if (!key.bounds.contains(event.getX(i), event.getY(i))) {
+                    val press = presses[pointer] ?: continue
+                    val key = press.key
+                    val x = event.getX(i)
+                    val y = event.getY(i)
+                    // Sliding off a key abandons it (it types nothing). A Bopomofo
+                    // key in 中 is only left upwards or downwards: sideways picks
+                    // one of its symbols.
+                    val off = if (press.slides) {
+                        y < key.bounds.top - key.bounds.height() / 2 || y > key.bounds.bottom + key.bounds.height() / 2
+                    } else {
+                        !key.bounds.contains(x, y)
+                    }
+                    if (off) {
                         MokyaImeService.traceInput { "touch slid off key=${key.spec}" }
-                        pressedKeys.remove(pointer)
+                        presses.remove(pointer)
                         if (key.spec is TouchKey.Engine) tracker.cancel(pointer)
                         invalidate()
+                    } else if (press.slides) {
+                        val count = KeyLabels.inputKey((key.spec as TouchKey.Engine).keycode)?.phonemes?.size ?: 1
+                        val phoneme = PhonemeSlide.picked(count, x - press.downX, slideThreshold)
+                        if (phoneme != press.phoneme) {
+                            MokyaImeService.traceInput { "touch slid to phoneme $phoneme of key=${key.spec}" }
+                            press.phoneme = phoneme
+                            tracker.pick(pointer, phoneme)
+                            if (phoneme != null) performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            invalidate()
+                        }
                     }
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val pointer = event.getPointerId(event.actionIndex)
                 MokyaImeService.trace { "touch up" }
-                when (val spec = pressedKeys.remove(pointer)?.spec) {
+                when (val spec = presses.remove(pointer)?.key?.spec) {
                     is TouchKey.Engine -> tracker.up(pointer)
                     is TouchKey.Text -> {
                         onText(if (shift.active) spec.shifted else spec.normal)
@@ -319,9 +394,8 @@ class KeyboardView @JvmOverloads constructor(
 
     /** Abandons every held key, e.g. when the keyboard is hidden. */
     fun cancelTouches() {
-        pressedKeys.clear()
+        presses.clear()
         tracker.cancelAll()
-        longPressed.clear()
         invalidate()
     }
 
