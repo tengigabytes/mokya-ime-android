@@ -216,11 +216,17 @@ class ImeEndToEndTest {
             tapText("a")
             tapText("b")
             waitForText("ab")
+            // A touch on the candidate strip tells where it is too.
+            val placeholders = { onMain { Diagnostics.ring!!.lines().count { "input in a sensitive field" in it } } }
+            val beforeStrip = placeholders()
+            tapAt(onMain { MokyaImeService.current!!.candidateStripForTest!!.expandButtonCenterOnScreen() })
+            waitFor("the strip touch recorded as a placeholder") { placeholders() > beforeStrip }
             val lines = onMain { Diagnostics.ring!!.lines() }
             val dump = lines.joinToString("\n", prefix = "diagnostics:\n")
             assertTrue(dump, lines.any { "sensitive=true" in it })
             assertTrue(dump, lines.any { "input in a sensitive field" in it })
             assertTrue(dump, lines.none { "touch down" in it })
+            assertTrue(dump, lines.none { "strip touch" in it })
         } finally {
             onMain {
                 MokyaImeService.traceForTest = trace

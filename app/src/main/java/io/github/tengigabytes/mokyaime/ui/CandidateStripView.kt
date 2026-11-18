@@ -198,7 +198,8 @@ class CandidateStripView(context: Context) : LinearLayout(context) {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        MokyaImeService.trace { "strip touch action=${ev.actionMasked} (${ev.x}, ${ev.y})" }
+        // A touch position tells which candidate is picked: traceInput.
+        MokyaImeService.traceInput { "strip touch action=${ev.actionMasked} (${ev.x}, ${ev.y})" }
         return super.dispatchTouchEvent(ev)
     }
 

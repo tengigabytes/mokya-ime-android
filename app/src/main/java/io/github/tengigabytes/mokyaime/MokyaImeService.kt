@@ -389,7 +389,7 @@ class MokyaImeService : InputMethodService(), MieListener {
     }
 
     private fun onCandidateTapped(index: Int) {
-        trace { "candidate $index tapped" }
+        traceInput { "candidate $index tapped" }
         runEngine { e ->
             val now = SystemClock.uptimeMillis()
             if (e.pickerActive) {
