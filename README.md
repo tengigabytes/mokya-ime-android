@@ -13,8 +13,11 @@ screen has buttons for both and a field to try it in).
 
 **On-screen keyboard.** The layout follows the MokyaLora keypad: OK and ⌫
 on top, then the 5×5 core input area. The D-pad is left out: candidates are
-tapped, and the cursor is placed by touching the text. Each key carries two
-Bopomofo symbols (ㄞㄢㄦ has three):
+tapped, and the cursor is placed by touching the text. On a short screen,
+such as a phone in landscape, the rows are drawn shorter (down to 60 % of
+their height) so that keyboard and candidate strip take no more than 60 %
+of the screen height. Each key carries two Bopomofo symbols (ㄞㄢㄦ has
+three):
 
 - Tap a key to match any of its symbols. To type one exactly, slide left
   or right on the key, as the symbols are printed: left for the first,
@@ -84,7 +87,8 @@ mokya-ime-android/
 ├── mie-engine/                   pure-JVM Kotlin (:mie-engine)
 │   └── src/main/kotlin/.../
 │       ├── engine/               MieEngine, MieListener, MokyaKeys, MieNative
-│       ├── input/                keyboard layout & labels, touch timing
+│       ├── input/                keyboard layout & labels, row heights
+│       │                         (KeyboardSizing), touch timing
 │       │                         (PressTracker), picking a symbol by sliding
 │       │                         (PhonemeSlide), candidate rows (CandidateGrid),
 │       │                         HardwareKeyMapper, EditorPolicy,

@@ -18,6 +18,7 @@ import android.widget.TextView
 import io.github.tengigabytes.mokyaime.MokyaImeService
 import io.github.tengigabytes.mokyaime.R
 import io.github.tengigabytes.mokyaime.input.CandidateGrid
+import io.github.tengigabytes.mokyaime.input.KeyboardSizing
 
 /**
  * The strip above the keyboard: `[mode] candidate candidate … ▲`. Tapping a
@@ -47,7 +48,7 @@ class CandidateStripView(context: Context) : LinearLayout(context) {
     private val density = resources.displayMetrics.density
     private val textColor = context.getColor(R.color.strip_text)
     private val selectedBackground = context.getColor(R.color.strip_selected_bg)
-    private val barHeight = (44 * density).toInt()
+    private val barHeight = (KeyboardSizing.STRIP_DP * density).toInt()   // never scaled
 
     private val modeView = TextView(context).apply {
         gravity = Gravity.CENTER

@@ -2,6 +2,7 @@
 package io.github.tengigabytes.mokyaime.ui
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.PointF
@@ -22,6 +23,7 @@ import io.github.tengigabytes.mokyaime.engine.InputMode
 import io.github.tengigabytes.mokyaime.engine.MokyaKeys
 import io.github.tengigabytes.mokyaime.input.KeyLabels
 import io.github.tengigabytes.mokyaime.input.KeyboardLayout
+import io.github.tengigabytes.mokyaime.input.KeyboardSizing
 import io.github.tengigabytes.mokyaime.input.PhonemeSlide
 import io.github.tengigabytes.mokyaime.input.PressTracker
 import io.github.tengigabytes.mokyaime.input.ShiftKey
@@ -39,6 +41,9 @@ import io.github.tengigabytes.mokyaime.input.TouchKey
  * and so are the letters of a key in EN, where holding gives the capitals.
  * ，SYM types 、 or ： when slid (; or : in EN); holding it opens the engine's picker,
  * for which the keyboard turns into a page of symbols ([picker]).
+ *
+ * On a short screen (a phone in landscape) the rows and their labels are
+ * drawn smaller ([KeyboardSizing]), so the app keeps some room.
  */
 class KeyboardView @JvmOverloads constructor(
     context: Context,
@@ -146,10 +151,13 @@ class KeyboardView @JvmOverloads constructor(
     private val density = resources.displayMetrics.density
     private fun sp(value: Float) =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, value, resources.displayMetrics)
-    private val actionRowHeight = 44 * density
-    private val keyRowHeight = 52 * density
-    private val keyboardHeight = actionRowHeight + keyRowHeight * KeyboardLayout.coreRows.size
-    private val gap = 3 * density
+
+    /** Row heights and labels are drawn at this share of their full size ([KeyboardSizing]). */
+    private var scale = 1f
+    private var actionRowHeight = 0f
+    private var keyRowHeight = 0f
+    private var keyboardHeight = 0f
+    private val gap = KeyboardSizing.GAP_DP * density
     private val radius = 6 * density
     private val slideThreshold = 16 * density
     private val popupCellWidth = 44 * density
@@ -170,8 +178,7 @@ class KeyboardView @JvmOverloads constructor(
     }
     private val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
-        textSize = sp(11f)
-        color = context.getColor(R.color.key_hint_text)
+        color = context.getColor(R.color.key_hint_text)   // size: updateSizes
     }
     private val colorInput = context.getColor(R.color.key_bg)
     private val colorFunction = context.getColor(R.color.key_bg_function)
@@ -194,6 +201,33 @@ class KeyboardView @JvmOverloads constructor(
 
     init {
         setBackgroundColor(context.getColor(R.color.keyboard_bg))
+        updateSizes(resources.configuration.screenHeightDp)
+    }
+
+    /**
+     * Sizes the rows for a screen [screenHeightDp] tall. The service builds
+     * a new input view after a configuration change (rotation), which reads
+     * the new height here; [onConfigurationChanged] covers a view that is
+     * kept.
+     */
+    private fun updateSizes(screenHeightDp: Int) {
+        scale = KeyboardSizing.scale(screenHeightDp.toFloat())
+        actionRowHeight = KeyboardSizing.ACTION_ROW_DP * scale * density
+        keyRowHeight = KeyboardSizing.KEY_ROW_DP * scale * density
+        keyboardHeight = actionRowHeight + keyRowHeight * KeyboardLayout.coreRows.size
+        hintPaint.textSize = sp(11f) * scale
+        MokyaImeService.trace { "keyboard scale $scale for a screen ${screenHeightDp}dp tall" }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val before = keyboardHeight
+        updateSizes(newConfig.screenHeightDp)
+        if (keyboardHeight != before) {
+            if (width > 0) layoutKeys(width)
+            requestLayout()
+            invalidate()
+        }
     }
 
     /** Back to lower-case letters, e.g. for a new editor. */
@@ -321,11 +355,11 @@ class KeyboardView @JvmOverloads constructor(
 
             val label = label(spec)
             val b = key.bounds
-            mainPaint.textSize = sp(if (label.main.length > 3) 15f else 19f)
-            val mainY = b.centerY() + mainPaint.textSize * 0.45f + (if (label.hint.isEmpty()) 0f else 4 * density)
+            mainPaint.textSize = sp(if (label.main.length > 3) 15f else 19f) * scale
+            val mainY = b.centerY() + mainPaint.textSize * 0.45f + (if (label.hint.isEmpty()) 0f else 4 * density * scale)
             canvas.drawText(label.main, b.centerX(), mainY, mainPaint)
             if (label.hint.isNotEmpty()) {
-                canvas.drawText(label.hint, b.centerX(), b.top + hintPaint.textSize + 2 * density, hintPaint)
+                canvas.drawText(label.hint, b.centerX(), b.top + hintPaint.textSize + 2 * density * scale, hintPaint)
             }
         }
         picking.forEach { drawPhonemePopup(canvas, it) }
@@ -342,7 +376,7 @@ class KeyboardView @JvmOverloads constructor(
         popupBounds.set(left, top, left + popupWidth, top + popupHeight)
         keyPaint.color = colorPressed
         canvas.drawRoundRect(popupBounds, radius, radius, keyPaint)
-        mainPaint.textSize = sp(19f)
+        mainPaint.textSize = sp(19f) * scale
         phonemes.forEachIndexed { index, phoneme ->
             val cellLeft = left + popupCellWidth * index
             if (index == typed) {
