@@ -14,10 +14,11 @@ screen has buttons for both and a field to try it in).
 **On-screen keyboard.** The layout follows the MokyaLora keypad: OK and ⌫
 on top, then the 5×5 core input area. The D-pad is left out: candidates are
 tapped, and the cursor is placed by touching the text. On a short screen,
-such as a phone in landscape, the rows are drawn shorter (down to 60 % of
-their height) so that keyboard and candidate strip take no more than 60 %
-of the screen height. Each key carries two Bopomofo symbols (ㄞㄢㄦ has
-three):
+such as a phone in landscape, the rows are drawn shorter, until keyboard
+and candidate strip fit in 60 % of the screen height. They never shrink
+below 60 % of their own height, so on the shortest screens the keyboard
+still takes a little more than that. Each key carries two Bopomofo symbols
+(ㄞㄢㄦ has three):
 
 - Tap a key to match any of its symbols. To type one exactly, slide left
   or right on the key, as the symbols are printed: left for the first,
