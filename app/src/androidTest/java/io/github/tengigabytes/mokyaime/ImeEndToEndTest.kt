@@ -19,7 +19,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.github.tengigabytes.mokyaime.engine.InputMode
 import io.github.tengigabytes.mokyaime.engine.MokyaKeys
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -120,6 +122,24 @@ class ImeEndToEndTest {
         waitFor("Direct mode") { onMain { MokyaImeService.current!!.modeForTest } == InputMode.DIRECT }
         keys("ab1")
         waitForText("ab1")
+    }
+
+    @Test
+    fun noLearningFieldForgetsWhatWasTypedAcrossRestarts() {
+        val ime = { MokyaImeService.current!! }
+        val before = onMain { ime().lruForTest()!! }
+        restartInputAndWait(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING)
+        keys("su3cl3")
+        key(KeyEvent.KEYCODE_ENTER)
+        waitForText("你好")
+        // Input restarts in the same field: onStartInput without onFinishInput.
+        restartInputAndWait(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING)
+        keys("su3cl3")
+        key(KeyEvent.KEYCODE_ENTER)
+        waitForText("你好你好")
+        assertFalse("the engine learned nothing\n${traceDump()}", before.contentEquals(onMain { ime().lruForTest()!! }))
+        restartInputAndWait(EditorInfo.IME_NULL)   // leaves it: the field may be learned from again
+        assertArrayEquals("LRU after leaving the field\n${traceDump()}", before, onMain { ime().lruForTest()!! })
     }
 
     @Test
@@ -470,6 +490,28 @@ class ImeEndToEndTest {
             field.imeOptions = imeOptions
             activity.getSystemService(InputMethodManager::class.java).restartInput(field)
         }
+    }
+
+    /**
+     * Restarts input on the field with [imeOptions], keeping its type: one
+     * onStartInput (unlike [restartField], whose new type restarts input
+     * once more), which this waits for.
+     */
+    private fun restartInputAndWait(imeOptions: Int) {
+        val noLearning = EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+        val starts = onMain { MokyaImeService.current!!.inputStartsForTest }
+        scenario.onActivity { activity ->
+            field.imeOptions = imeOptions
+            activity.getSystemService(InputMethodManager::class.java).restartInput(field)
+        }
+        waitFor("input restarted with options 0x${imeOptions.toString(16)}") {
+            onMain {
+                val ime = MokyaImeService.current!!
+                val options = ime.currentInputEditorInfo?.imeOptions ?: 0
+                ime.inputStartsForTest > starts && (options and noLearning) == (imeOptions and noLearning)
+            }
+        }
+        instrumentation.waitForIdleSync()
     }
 
     private fun waitForQwerty() {

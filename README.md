@@ -87,7 +87,8 @@ mokya-ime-android/
 │       ├── input/                keyboard layout & labels, touch timing
 │       │                         (PressTracker), picking a symbol by sliding
 │       │                         (PhonemeSlide), candidate rows (CandidateGrid),
-│       │                         HardwareKeyMapper, EditorPolicy
+│       │                         HardwareKeyMapper, EditorPolicy,
+│       │                         LearningGuard (no-learning fields)
 │       └── fieldtest/            field-test checklist, report, trace ring
 ├── licenses/                     LGPL-2.1 and CC BY-SA 4.0 texts (dictionary data)
 ├── LICENSE                       Apache License 2.0
@@ -210,6 +211,10 @@ engine holds a global reference to that buffer for its whole life. The
 personalised LRU is loaded in `onCreate` and saved atomically to
 `filesDir/mie_lru.bin` in `onFinishInput` / `onDestroy`, only when it
 changed. App backup is disabled because the file holds recently typed words.
+In a field that must not be learned from, `LearningGuard` snapshots the LRU
+when input starts and puts it back when input starts again (a restart in
+the same field comes without `onFinishInput`), when it finishes, and before
+the LRU is saved in `onDestroy`.
 
 Known limitations:
 

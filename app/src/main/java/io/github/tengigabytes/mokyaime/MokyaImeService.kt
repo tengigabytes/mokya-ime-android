@@ -33,6 +33,7 @@ import io.github.tengigabytes.mokyaime.input.EnterAction
 import io.github.tengigabytes.mokyaime.input.HardwareAction
 import io.github.tengigabytes.mokyaime.input.HardwareKey
 import io.github.tengigabytes.mokyaime.input.HardwareKeyMapper
+import io.github.tengigabytes.mokyaime.input.LearningGuard
 import io.github.tengigabytes.mokyaime.input.SpecialKey
 import io.github.tengigabytes.mokyaime.ui.CandidateStripView
 import io.github.tengigabytes.mokyaime.ui.KeyboardView
@@ -139,8 +140,11 @@ class MokyaImeService : InputMethodService(), MieListener {
     private var userMode = InputMode.SMART_ZH
     private var editorForcesMode = false
 
-    /** LRU state to restore at the end of an editor that must not be learned from. */
-    private var lruSnapshot: ByteArray? = null
+    /** Forgets what an editor that must not be learned from taught the LRU. */
+    private val learningGuard = LearningGuard(
+        snapshot = { engine?.serializeLru() },
+        restore = { engine?.loadLru(it) },
+    )
 
     /** Hardware key-downs we handled; their key-ups are swallowed too. */
     private val consumedKeyDowns = HashSet<Int>()
@@ -198,6 +202,9 @@ class MokyaImeService : InputMethodService(), MieListener {
     override fun onDestroy() {
         stopTick()
         handler.removeCallbacks(refreshRunnable)
+        // super.onDestroy() finishes the input still being served, after the
+        // engine is gone: forget what a no-learning editor taught before saving.
+        learningGuard.leave()
         saveLru()
         engine?.close()
         engine = null
@@ -273,11 +280,10 @@ class MokyaImeService : InputMethodService(), MieListener {
         val required = EditorPolicy.requiredMode(attribute.inputType)
         editorForcesMode = required != null
         switchMode(required ?: userMode)
-        lruSnapshot = if (sensitiveInput) {
-            engine?.serializeLru()
-        } else {
-            null
-        }
+        // A restart comes without onFinishInput: what a no-learning editor
+        // taught before it is forgotten here.
+        learningGuard.enter(sensitiveInput)
+        inputStartsForTest++
         syncTextContext()
         refreshUi()
     }
@@ -331,8 +337,7 @@ class MokyaImeService : InputMethodService(), MieListener {
         trace { "finishInput" }
         runEngine { it.abort() }   // discards pending input and clears our composing text
         stopTick()
-        lruSnapshot?.let { engine?.loadLru(it) }   // forget what this editor taught
-        lruSnapshot = null
+        learningGuard.leave()   // forget what a no-learning editor taught
         saveLru()
         resetTracking(-1, -1)
         consumedKeyDowns.clear()
@@ -816,6 +821,10 @@ class MokyaImeService : InputMethodService(), MieListener {
      */
     internal fun useEmptyLruForTest(empty: Boolean) {
         val e = engine ?: return
+        // In a no-learning editor the guard holds the LRU being swapped out;
+        // it would put that back when the editor is left (and it would then
+        // be saved). Guard the swapped-in one instead.
+        learningGuard.leave()
         if (empty) {
             if (lruHeldForTest == null) lruHeldForTest = e.serializeLru()
             e.clearLru()
@@ -823,7 +832,15 @@ class MokyaImeService : InputMethodService(), MieListener {
             lruHeldForTest?.let { e.loadLru(it) }
             lruHeldForTest = null
         }
+        learningGuard.enter(sensitiveInput)
     }
+
+    /** The engine's LRU as it is in memory now. */
+    internal fun lruForTest(): ByteArray? = engine?.serializeLru()
+
+    /** onStartInput calls so far, so a test can wait for a restart that leaves the editor info alike. */
+    internal var inputStartsForTest = 0
+        private set
 
     /** Switches mode as if the user had picked it, so later input restarts keep it. */
     internal fun switchModeForTest(mode: InputMode) {
