@@ -671,6 +671,9 @@ class MokyaImeService : InputMethodService(), MieListener {
         val ic = currentInputConnection
         if (ic == null || composingStart < 0 || composingEnd <= composingStart) {
             expectedCursor = if (selStart == selEnd) selEnd else -1
+            // No edit of ours follows whose report would re-sync the context,
+            // and abort() reset SmartEn to the start of a sentence.
+            syncTextContext()
             return
         }
         // Remove the pending phonemes, then restore the user's selection,
