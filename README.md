@@ -175,10 +175,12 @@ testing in real apps:
 ## How the service drives the engine
 
 All engine calls run on the main thread. Touch keys and hardware keys both
-end up in `MokyaImeService.dispatchKey`. Each engine call is wrapped in one
-InputConnection batch edit. Engine callbacks never call back into the
-engine: `on_composition_changed` only marks the composition dirty, and the
-composing text and UI are refreshed once the call returns.
+end up in `MokyaImeService.dispatchKey`. The edits of one engine call reach
+the editor as one InputConnection batch edit, begun by the first of them; a
+call that edits nothing makes no InputConnection call. Engine callbacks
+never call back into the engine: `on_composition_changed` only marks the
+composition dirty, and the composing text and UI are refreshed once the
+call returns.
 
 | Engine | Android |
 |--------|---------|
@@ -189,7 +191,7 @@ composing text and UI are refreshed once the call returns.
 | `set_text_context` | `getTextBeforeCursor(2, 0)` in `onUpdateSelection`, once our edits have landed |
 | `abort` | `onFinishInput`, or when `onUpdateSelection` shows the cursor was moved by someone else |
 | `now_ms` | `SystemClock.uptimeMillis()` (same base as `KeyEvent.getEventTime()`) |
-| `tick` | `Handler` every 20 ms, only while `MieEngine.needsTick` (something pending, or SYM1 held for the long-press picker) |
+| `tick` | `Handler` every 20 ms, only while `MieEngine.needsTick` (something pending, or SYM1 held for the long-press picker); a tick that changes nothing touches neither the editor nor the views |
 
 What the touch keyboard adds on top of the engine:
 

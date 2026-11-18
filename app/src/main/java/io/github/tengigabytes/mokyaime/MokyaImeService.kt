@@ -19,6 +19,7 @@ import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
 import io.github.tengigabytes.mokyaime.engine.InputMode
 import io.github.tengigabytes.mokyaime.engine.MieEngine
 import io.github.tengigabytes.mokyaime.engine.MieListener
@@ -170,6 +171,12 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     /** The engine reported a composition change during the current call. */
     private var compositionDirty = false
+
+    /** True while [runEngine] runs an engine call. */
+    private var inEngineCall = false
+
+    /** The connection whose batch edit the current engine call began ([editor]), if it edited. */
+    private var openBatch: InputConnection? = null
 
     /** EN: the last thing typed was a letter of a word being spelled ([commitSpelledLetter]). */
     private var spelling = false
@@ -477,7 +484,7 @@ class MokyaImeService : InputMethodService(), MieListener {
     private fun commitSpelledLetter(letter: String) {
         runEngine { e ->
             if (e.hasPending || e.candidates().isNotEmpty()) tap(e, MokyaKeys.KEY_OK, SystemClock.uptimeMillis())
-            val before = currentInputConnection?.getTextBeforeCursor(1, 0)
+            val before = editor()?.getTextBeforeCursor(1, 0)   // it always types: open the batch
             val newWord = letter[0].isLetter() && !spelling && !before.isNullOrEmpty() && before.last().isLetterOrDigit()
             commitToEditor(if (newWord) " $letter" else letter)
             spelling = true
@@ -522,6 +529,7 @@ class MokyaImeService : InputMethodService(), MieListener {
         if (text == "\n") {
             // Idle OK. sendKeyChar runs the editor action (send / search /
             // next ...) when there is one, otherwise sends Enter.
+            editor()   // into the call's batch
             sendKeyChar('\n')
             expectedCursor = -1
             return
@@ -535,7 +543,7 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     override fun onDeleteBefore() {
         if (detached) return
-        val ic = currentInputConnection ?: return
+        val ic = editor() ?: return   // every way out below edits
         if (!ic.getSelectedText(0).isNullOrEmpty()) {
             ic.commitText("", 1)   // delete the selection
             expectedCursor = -1
@@ -557,6 +565,7 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     override fun onCursorMove(direction: NavDirection) {
         if (detached) return
+        editor()   // into the call's batch
         sendDownUpKeyEvents(
             when (direction) {
                 NavDirection.LEFT -> KeyEvent.KEYCODE_DPAD_LEFT
@@ -569,7 +578,7 @@ class MokyaImeService : InputMethodService(), MieListener {
     }
 
     private fun commitToEditor(text: String) {
-        val ic = currentInputConnection ?: return
+        val ic = editor() ?: return
         ic.commitText(text, 1)   // replaces the composing text, if any
         if (expectedCursor >= 0) expectedCursor += text.length - shown.text.length
         shown = NOTHING_SHOWN
@@ -577,9 +586,9 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     private fun showComposition() {
         val e = engine ?: return
-        val ic = currentInputConnection ?: return
         val pending = e.pending()
         if (pending == shown) return
+        val ic = editor() ?: return
         ic.setComposingText(styled(pending), 1)   // "" removes the composing text
         if (expectedCursor >= 0) expectedCursor += pending.text.length - shown.text.length
         shown = pending
@@ -700,31 +709,56 @@ class MokyaImeService : InputMethodService(), MieListener {
      * Runs one engine call as a single editor batch: the edits it produces
      * (commits during the call, then the composing text once it returns)
      * reach the editor as one consistent state, whose cursor position is
-     * recorded for [onUpdateSelection]. Then refreshes timers and UI.
+     * recorded for [onUpdateSelection]. The batch is begun by the first
+     * edit ([editor]), so a call that edits nothing makes no
+     * InputConnection call at all. Then refreshes timers and UI; the UI is
+     * left alone when [quietIf] says the call's result changed nothing and
+     * it neither edited nor changed the composition (an idle tick).
      */
-    private inline fun <T> runEngine(block: (MieEngine) -> T): T? {
+    private inline fun <T> runEngine(quietIf: (T) -> Boolean = { false }, block: (MieEngine) -> T): T? {
         val e = engine ?: return null
-        val ic = currentInputConnection
         val cursorBefore = expectedCursor
         val shownBefore = shown
-        ic?.beginBatchEdit()
+        val nested = inEngineCall
+        inEngineCall = true
+        var quiet = false
         try {
             val result = block(e)
             if (compositionDirty) {
                 compositionDirty = false
                 showComposition()
+            } else {
+                quiet = quietIf(result)
             }
             return result
         } finally {
-            ic?.endBatchEdit()
+            val batch = openBatch
+            if (!nested) {
+                inEngineCall = false
+                openBatch = null
+                batch?.endBatchEdit()
+            }
             val edited = expectedCursor != cursorBefore || shown != shownBefore
             if (edited && expectedCursor >= 0) {
                 expectedReports.addLast(expectedCursor)
                 while (expectedReports.size > MAX_EXPECTED_REPORTS) expectedReports.removeFirst()
             }
             scheduleTick()
-            refreshUi()
+            if (!quiet || batch != null) refreshUi()
         }
+    }
+
+    /**
+     * The editor's connection, for an edit. During an engine call the first
+     * edit begins the call's batch edit, which [runEngine] ends.
+     */
+    private fun editor(): InputConnection? {
+        val ic = currentInputConnection ?: return null
+        if (inEngineCall && openBatch == null) {
+            ic.beginBatchEdit()
+            openBatch = ic
+        }
+        return ic
     }
 
     /** Pushes engine state to the keyboard, the strip and the candidates area. */
@@ -782,7 +816,8 @@ class MokyaImeService : InputMethodService(), MieListener {
 
     private fun onTick() {
         tickScheduled = false
-        if (runEngine { it.tick(SystemClock.uptimeMillis()) } == true) {
+        // Most ticks change nothing: they then touch neither the editor nor the views.
+        if (runEngine(quietIf = { changed: Boolean -> !changed }) { it.tick(SystemClock.uptimeMillis()) } == true) {
             trace { "tick changed state, picker=${engine?.pickerActive}" }
         }
     }
