@@ -39,6 +39,28 @@ namespace {
 
 constexpr const char* kNativeClass = "io/github/tengigabytes/mokyaime/engine/MieNative";
 
+// ── Values the Kotlin side mirrors ───────────────────────────────────────
+// Enums cross as their ordinals, constants are copied. A libmie change here
+// must be mirrored in the named Kotlin declaration.
+
+static_assert(static_cast<int>(mie::InputMode::SmartZh) == 0 &&
+              static_cast<int>(mie::InputMode::SmartEn) == 1 &&
+              static_cast<int>(mie::InputMode::Direct) == 2,
+              "mie::InputMode changed: update enum InputMode (MieEngine.kt)");
+static_assert(static_cast<int>(mie::NavDir::Left) == 0 &&
+              static_cast<int>(mie::NavDir::Right) == 1 &&
+              static_cast<int>(mie::NavDir::Up) == 2 &&
+              static_cast<int>(mie::NavDir::Down) == 3,
+              "mie::NavDir changed: update enum NavDirection (MieListener.kt)");
+static_assert(static_cast<int>(mie::PendingStyle::None) == 0 &&
+              static_cast<int>(mie::PendingStyle::PrefixBold) == 1 &&
+              static_cast<int>(mie::PendingStyle::Inverted) == 2,
+              "mie::PendingStyle changed: update enum PendingStyle (MieEngine.kt)");
+static_assert(mie::ImeLogic::kPageSize == 5,
+              "ImeLogic::kPageSize changed: update MieEngine.PAGE_SIZE");
+static_assert(mie::ImeLogic::kLongPressMs == 500,
+              "ImeLogic::kLongPressMs changed: update PressTracker.LONG_PRESS_MS");
+
 jclass g_string_class = nullptr;   // global ref, set in JNI_OnLoad
 
 // ── UTF-8 <-> UTF-16 ─────────────────────────────────────────────────────
